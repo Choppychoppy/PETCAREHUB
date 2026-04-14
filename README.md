@@ -4,54 +4,54 @@
 
 Full Stack, Machine Learning
 
-## Gioi Thieu
+## Giới Thiệu
 
-PetCareHub la nen tang cham soc thu cung tich hop AI. He thong bao gom backend NestJS, frontend React va module AI su dung PyTorch de ho tro chan doan benh thu cung.
+PetCareHub là nền tảng chăm sóc thú cưng tích hợp AI. Hệ thống bao gồm backend NestJS, frontend React và module AI sử dụng PyTorch để hỗ trợ chẩn đoán bệnh thú cưng.
 
-## Chuc Nang
+## Chức Năng
 
-- Quan ly thong tin thu cung
-- Dat lich kham va cham soc
-- Chan doan benh thu cung bang AI (PyTorch)
-- Quan ly dich vu cham soc
-- Bai viet va cong dong thu cung
+- Quản lý thông tin thú cưng
+- Đặt lịch khám và chăm sóc
+- Chẩn đoán bệnh thú cưng bằng AI (PyTorch)
+- Quản lý dịch vụ chăm sóc
+- Bài viết và cộng đồng thú cưng
 
-## Cong Nghe Su Dung
+## Công Nghệ Sử Dụng
 
 - **Backend**: NestJS, TypeScript
 - **Frontend**: React.js
 - **AI Module**: Python, PyTorch
 - **Database**: MySQL/PostgreSQL
-- **Docker**: Container hoa
+- **Docker**: Container hóa
 
-## Yeu Cau He Thong
+## Yêu Cầu Hệ Thống
 
 - Node.js >= 16.x
 - Python 3.8+
-- Docker (tuy chon)
+- Docker (tùy chọn)
 
-## Cai Dat
+## Cài Đặt
 
 ```bash
-# Cai dat backend
+# Cài đặt backend
 cd backend && npm install
 
-# Cai dat frontend
+# Cài đặt frontend
 cd frontend && npm install
 
-# Cai dat AI module
+# Cài đặt AI module
 cd AI && pip install -r requirements.txt
 ```
 
-## Chay Ung Dung
+## Chạy Ứng Dụng
 
 ```bash
-# Chay backend
+# Chạy backend
 cd backend && npm run start:dev
 
-# Chay frontend
+# Chạy frontend
 cd frontend && npm start
 
-# Chay AI server
+# Chạy AI server
 cd AI && python api_server.py
 ```
