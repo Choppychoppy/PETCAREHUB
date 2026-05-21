@@ -6,11 +6,12 @@ import { OrdersService } from './orders.service';
 import { Order } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { DiscountCode } from './entities/discount-code.entity';
+import { Product } from '../products/entities/product.entity';
 import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Order, OrderItem, DiscountCode]),
+    TypeOrmModule.forFeature([Order, OrderItem, DiscountCode, Product]),
     PaymentsModule,
   ],
   controllers: [OrdersController],

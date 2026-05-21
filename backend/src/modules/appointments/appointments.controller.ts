@@ -37,23 +37,35 @@ export class AppointmentsController {
   @Get()
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get appointments' })
+  @ApiOperation({ summary: 'Get appointments (user thấy của mình, admin/staff thấy tất cả)' })
   findAll(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: UserRole,
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('status') status?: string,
     @Query('date') date?: string,
     @Query('search') search?: string,
   ) {
-    return this.appointmentsService.findAll(page, limit, status, date, search);
+    // Admin va Staff duoc xem toan bo lich hen, user thuong chi xem cua minh.
+    const scopedUserId =
+      role === UserRole.ADMIN || role === UserRole.STAFF ? undefined : userId;
+    return this.appointmentsService.findAll(page, limit, status, date, search, scopedUserId);
   }
 
   @Get(':id')
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Get appointment by id' })
-  findOne(@Param('id') id: string) {
-    return this.appointmentsService.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: UserRole,
+  ) {
+    // User thuong phai dung chu so huu lich hen moi xem duoc.
+    const requester =
+      role === UserRole.ADMIN || role === UserRole.STAFF ? undefined : userId;
+    return this.appointmentsService.findOne(id, requester);
   }
 
   @Put(':id')

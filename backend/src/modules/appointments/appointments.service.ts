@@ -24,7 +24,8 @@ export class AppointmentsService {
     limit: number = 10,
     status?: string,
     date?: string,
-    search?: string
+    search?: string,
+    userId?: string,
   ) {
     // Convert to numbers in case they come as strings from query parameters
     const pageNum = Number(page) || 1;
@@ -38,6 +39,12 @@ export class AppointmentsService {
       .leftJoinAndSelect('appointment.staff', 'staff')
       .leftJoinAndSelect('staff.profile', 'staffProfile')
       .orderBy('appointment.createdAt', 'DESC');
+
+    // BAT BUOC filter theo userId neu duoc truyen vao (user thuong chi xem cua minh).
+    // Day la fix cho lo hong cu, nguoi dung thuong nhin thay lich hen cua user khac.
+    if (userId) {
+      queryBuilder.andWhere('appointment.userId = :userId', { userId });
+    }
 
     // Filter by status
     if (status && status !== 'all') {
@@ -85,7 +92,7 @@ export class AppointmentsService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, requesterUserId?: string) {
     const appointment = await this.appointmentRepository.findOne({
       where: { id },
       relations: ['user', 'user.profile', 'service', 'pet', 'staff', 'staff.profile'],
@@ -93,6 +100,12 @@ export class AppointmentsService {
 
     if (!appointment) {
       throw new NotFoundException('Appointment not found');
+    }
+
+    // Nguoi dung thuong chi duoc xem lich hen cua minh.
+    // Admin/Staff goi findOne(id) khong truyen requesterUserId -> bo qua check.
+    if (requesterUserId && appointment.userId !== requesterUserId) {
+      throw new ForbiddenException('Bạn không có quyền xem lịch hẹn này');
     }
 
     return appointment;

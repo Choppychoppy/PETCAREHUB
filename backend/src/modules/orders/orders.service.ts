@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Order } from './entities/order.entity';
 import { OrderItem } from './entities/order-item.entity';
+import { Product } from '../products/entities/product.entity';
 import { VNPayService } from '../payments/vnpay.service';
 import { PaymentStatus } from '../../common/enums/appointment-status.enum';
 
@@ -13,7 +14,10 @@ export class OrdersService {
     private orderRepository: Repository<Order>,
     @InjectRepository(OrderItem)
     private orderItemRepository: Repository<OrderItem>,
+    @InjectRepository(Product)
+    private productRepository: Repository<Product>,
     private vnpayService: VNPayService,
+    private dataSource: DataSource,
   ) {}
 
   private generateOrderNumber(): string {
@@ -23,52 +27,119 @@ export class OrdersService {
   }
 
   async create(createOrderDto: any, userId?: string, ipAddr?: string) {
-    // Generate unique order number
-    const orderNumber = this.generateOrderNumber();
+    const items: Array<{ productId: string; quantity: number; price: number; name?: string; imageUrl?: string }> =
+      createOrderDto.items || [];
 
-    // Calculate totals
-    const subtotal = createOrderDto.subtotal ||
-      (createOrderDto.items?.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) || 0);
-    const discountAmount = createOrderDto.discountAmount || 0;
-    const shippingAmount = createOrderDto.shippingFee || 0;
-    const totalAmount = createOrderDto.totalAmount || (subtotal - discountAmount + shippingAmount);
+    if (!items.length) {
+      throw new BadRequestException('Đơn hàng phải có ít nhất một sản phẩm.');
+    }
 
-    // Build shipping address
-    const shippingAddress = {
-      name: createOrderDto.customerName || '',
-      phone: createOrderDto.customerPhone || '',
-      address: createOrderDto.shippingAddress || '',
-      city: '',
-      postalCode: '',
-      country: 'Vietnam'
-    };
+    // Gom so luong theo productId de tranh truong hop client gui trung dong san pham
+    const requestedQtyByProduct = new Map<string, number>();
+    for (const it of items) {
+      if (!it.productId) {
+        throw new BadRequestException('Thiếu productId trong sản phẩm đặt hàng.');
+      }
+      if (!Number.isInteger(it.quantity) || it.quantity <= 0) {
+        throw new BadRequestException(
+          `Số lượng đặt cho sản phẩm ${it.name || it.productId} không hợp lệ.`,
+        );
+      }
+      requestedQtyByProduct.set(
+        it.productId,
+        (requestedQtyByProduct.get(it.productId) || 0) + it.quantity,
+      );
+    }
 
-    // Determine payment status based on payment method
-    const paymentStatus = createOrderDto.paymentMethod === 'vnpay'
-      ? PaymentStatus.PENDING
-      : PaymentStatus.PENDING;
+    // Tat ca thao tac (lock - validate - tru kho - tao don) trong 1 transaction
+    const savedOrderId = await this.dataSource.transaction(async (manager) => {
+      const productRepo = manager.getRepository(Product);
 
-    // Create order
-    const order = this.orderRepository.create({
-      orderNumber,
-      subtotal,
-      discountAmount,
-      shippingAmount,
-      totalAmount,
-      paymentMethod: createOrderDto.paymentMethod || 'cod',
-      paymentStatus,
-      shippingAddress,
-      notes: createOrderDto.notes,
-      user: userId ? { id: userId } : undefined,
-    });
+      // Pessimistic write lock tat ca san pham trong gio hang
+      // de tranh race condition: 2 user dat cung 1 SP, ca 2 cung pass validation
+      const productIds = Array.from(requestedQtyByProduct.keys());
+      const products = await productRepo
+        .createQueryBuilder('p')
+        .where('p.id IN (:...ids)', { ids: productIds })
+        .setLock('pessimistic_write')
+        .getMany();
 
-    // Save order first
-    const savedOrder = await this.orderRepository.save(order);
+      if (products.length !== productIds.length) {
+        const foundIds = new Set(products.map((p) => p.id));
+        const missing = productIds.filter((id) => !foundIds.has(id));
+        throw new NotFoundException(`Không tìm thấy sản phẩm: ${missing.join(', ')}`);
+      }
 
-    // Create order items
-    if (createOrderDto.items && createOrderDto.items.length > 0) {
-      const orderItems = createOrderDto.items.map((item: any) =>
-        this.orderItemRepository.create({
+      // Validate stock tung san pham
+      const outOfStock: string[] = [];
+      for (const p of products) {
+        const requested = requestedQtyByProduct.get(p.id)!;
+        if (!p.isActive) {
+          throw new BadRequestException(`Sản phẩm "${p.name}" đã ngừng kinh doanh.`);
+        }
+        if (p.stockQuantity < requested) {
+          outOfStock.push(
+            `"${p.name}" chỉ còn ${p.stockQuantity} sản phẩm, không đủ cho yêu cầu ${requested}.`,
+          );
+        }
+      }
+      if (outOfStock.length) {
+        throw new BadRequestException(
+          `Không đủ tồn kho: ${outOfStock.join(' ')}`,
+        );
+      }
+
+      // Tru kho atomic
+      for (const p of products) {
+        const requested = requestedQtyByProduct.get(p.id)!;
+        await productRepo.decrement({ id: p.id }, 'stockQuantity', requested);
+      }
+
+      // Generate unique order number
+      const orderNumber = this.generateOrderNumber();
+
+      // Calculate totals
+      const subtotal =
+        createOrderDto.subtotal ||
+        items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const discountAmount = createOrderDto.discountAmount || 0;
+      const shippingAmount = createOrderDto.shippingFee || 0;
+      const totalAmount =
+        createOrderDto.totalAmount || subtotal - discountAmount + shippingAmount;
+
+      const shippingAddress = {
+        name: createOrderDto.customerName || '',
+        phone: createOrderDto.customerPhone || '',
+        address: createOrderDto.shippingAddress || '',
+        city: '',
+        postalCode: '',
+        country: 'Vietnam',
+      };
+
+      const paymentStatus =
+        createOrderDto.paymentMethod === 'vnpay'
+          ? PaymentStatus.PENDING
+          : PaymentStatus.PENDING;
+
+      const orderRepo = manager.getRepository(Order);
+      const orderItemRepo = manager.getRepository(OrderItem);
+
+      const order = orderRepo.create({
+        orderNumber,
+        subtotal,
+        discountAmount,
+        shippingAmount,
+        totalAmount,
+        paymentMethod: createOrderDto.paymentMethod || 'cod',
+        paymentStatus,
+        shippingAddress,
+        notes: createOrderDto.notes,
+        user: userId ? { id: userId } : undefined,
+      });
+      const savedOrder = await orderRepo.save(order);
+
+      const orderItems = items.map((item) =>
+        orderItemRepo.create({
           order: savedOrder,
           product: { id: item.productId },
           quantity: item.quantity,
@@ -77,29 +148,26 @@ export class OrdersService {
           productName: item.name || 'Sản phẩm',
           productSku: item.productId,
           productImage: item.imageUrl,
-        })
+        }),
       );
+      await orderItemRepo.save(orderItems);
 
-      await this.orderItemRepository.save(orderItems);
-    }
+      return savedOrder.id;
+    });
 
-    // If VNPay payment, generate payment URL
+    // VNPay url tao ben ngoai transaction vi day la call hoan toan local (khong DB)
     if (createOrderDto.paymentMethod === 'vnpay') {
+      const order = await this.findOne(savedOrderId);
       const vnpayUrl = this.vnpayService.createPaymentUrl({
-        orderId: savedOrder.id,
-        amount: totalAmount,
-        orderInfo: `Thanh toan don hang ${orderNumber}`,
+        orderId: savedOrderId,
+        amount: Number(order!.totalAmount),
+        orderInfo: `Thanh toan don hang ${order!.orderNumber}`,
         ipAddr: ipAddr || '127.0.0.1',
       });
-
-      return {
-        ...await this.findOne(savedOrder.id),
-        vnpayUrl,
-      };
+      return { ...order, vnpayUrl };
     }
 
-    // Return order with items
-    return this.findOne(savedOrder.id);
+    return this.findOne(savedOrderId);
   }
 
   /**
