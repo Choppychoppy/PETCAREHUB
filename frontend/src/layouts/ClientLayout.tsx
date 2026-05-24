@@ -31,6 +31,7 @@ const navigationItems = [
   { name: 'Sản phẩm', href: '/products', protected: false },
   { name: 'Blog', href: '/blog', protected: false },
   { name: 'Nhận diện giống chó', href: '/dog-breed-prediction', protected: false },
+  { name: 'Nhận diện bệnh chó', href: '/dog-disease-detection', protected: false },
   { name: 'Cộng đồng', href: '/community', protected: true },
   { name: 'Liên hệ', href: '/contact', protected: false }
 ]

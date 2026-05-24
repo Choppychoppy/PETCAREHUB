@@ -33,6 +33,7 @@ import ClientProducts from '@/pages/Products'
 import ProductDetail from '@/pages/ProductDetail'
 import Community from '@/pages/Community'
 import DogBreedPrediction from '@/pages/DogBreedPrediction'
+import DogDiseaseDetection from '@/pages/DogDiseaseDetection'
 import Cart from '@/pages/Cart'
 import Checkout from '@/pages/Checkout'
 import VNPayReturn from '@/pages/VNPayReturn'
@@ -83,6 +84,7 @@ function App() {
         <Route path="/products" element={<ClientLayout><ClientProducts /></ClientLayout>} />
         <Route path="/products/:id" element={<ClientLayout><ProductDetail /></ClientLayout>} />
         <Route path="/dog-breed-prediction" element={<ClientLayout><DogBreedPrediction /></ClientLayout>} />
+        <Route path="/dog-disease-detection" element={<ClientLayout><DogDiseaseDetection /></ClientLayout>} />
         <Route path="/blog" element={<ClientLayout><Blog /></ClientLayout>} />
         <Route path="/blog/:id" element={<ClientLayout><BlogDetail /></ClientLayout>} />
 
