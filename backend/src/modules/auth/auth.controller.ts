@@ -17,6 +17,8 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ResetPasswordDto, RequestPasswordResetDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { ResendOtpDto } from './dto/resend-otp.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
 
@@ -109,5 +111,22 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Invalid verification token' })
   async verifyEmail(@Param('token') token: string) {
     return this.authService.verifyEmail(token);
+  }
+
+  @Post('verify-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Xác minh tài khoản bằng mã OTP gửi qua email' })
+  @ApiResponse({ status: 200, description: 'Xác minh thành công, trả về accessToken' })
+  @ApiResponse({ status: 400, description: 'Mã OTP không đúng hoặc đã hết hạn' })
+  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
+    return this.authService.verifyOtp(verifyOtpDto.email, verifyOtpDto.otp);
+  }
+
+  @Post('resend-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Gửi lại mã OTP xác minh email' })
+  @ApiResponse({ status: 200, description: 'Đã gửi lại mã OTP nếu email hợp lệ' })
+  async resendOtp(@Body() resendOtpDto: ResendOtpDto) {
+    return this.authService.resendOtp(resendOtpDto.email);
   }
 }

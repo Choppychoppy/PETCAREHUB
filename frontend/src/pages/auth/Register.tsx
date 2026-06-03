@@ -39,15 +39,12 @@ export default function Register() {
 
     try {
       const { confirmPassword, ...registerData } = formData
-      const response = await authService.register(registerData)
-      console.log('Registration successful:', response)
+      await authService.register(registerData)
 
-      // Nếu có returnUrl thì redirect về đó, nếu không thì redirect theo role
-      if (returnUrl) {
-        navigate(returnUrl)
-      } else {
-        authService.redirectAfterLogin()
-      }
+      // Đăng ký xong chưa có token: chuyển sang trang nhập OTP để xác minh email
+      const params = new URLSearchParams({ email: formData.email })
+      if (returnUrl) params.set('returnUrl', returnUrl)
+      navigate(`/auth/verify-otp?${params.toString()}`)
     } catch (err: any) {
       setError(err.response?.data?.message || 'Đăng ký thất bại')
     } finally {

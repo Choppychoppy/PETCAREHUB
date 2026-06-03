@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   ConflictException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -13,11 +14,15 @@ import { v4 as uuidv4 } from 'uuid';
 import { User } from '../users/entities/user.entity';
 import { UserProfile } from '../users/entities/user-profile.entity';
 import { UserRole, UserStatus } from '../../common/enums/user-role.enum';
+import { EmailService } from '../../common/services/email.service';
 
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+
+// Thời gian hết hạn mã OTP: 15 phút
+const OTP_EXPIRY_MINUTES = 15;
 
 export interface JwtPayload {
   sub: string;
@@ -33,9 +38,21 @@ export class AuthService {
     @InjectRepository(UserProfile)
     private userProfileRepository: Repository<UserProfile>,
     private jwtService: JwtService,
+    private emailService: EmailService,
   ) {}
 
-  async register(registerDto: RegisterDto): Promise<{ user: User; accessToken: string }> {
+  // Sinh mã OTP 6 chữ số
+  private generateOtp(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  private getOtpExpiry(): Date {
+    const expires = new Date();
+    expires.setMinutes(expires.getMinutes() + OTP_EXPIRY_MINUTES);
+    return expires;
+  }
+
+  async register(registerDto: RegisterDto): Promise<{ message: string; email: string }> {
     const { email, password, name, phone } = registerDto;
 
     // Check if user already exists
@@ -50,13 +67,18 @@ export class AuthService {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
+    // Sinh mã OTP và thời gian hết hạn
+    const otp = this.generateOtp();
+
+    // Create user (chưa xác minh email)
     const user = this.userRepository.create({
       email,
       password: hashedPassword,
       role: UserRole.USER,
       status: UserStatus.ACTIVE,
-      emailVerificationToken: uuidv4(),
+      emailVerified: false,
+      emailVerificationToken: otp,
+      emailVerificationExpires: this.getOtpExpiry(),
     });
 
     const savedUser = await this.userRepository.save(user);
@@ -70,21 +92,94 @@ export class AuthService {
 
     await this.userProfileRepository.save(profile);
 
-    // Generate JWT token
+    // Gửi email chứa mã OTP. Không để lỗi SMTP làm hỏng việc đăng ký:
+    // tài khoản vẫn được tạo và người dùng có thể bấm "Gửi lại mã".
+    try {
+      await this.emailService.sendVerificationOtpEmail(email, name, otp);
+    } catch (error) {
+      console.error('Gửi email OTP thất bại khi đăng ký:', error);
+    }
+
+    // Không trả accessToken: người dùng phải xác minh OTP trước
+    return {
+      message: 'Đăng ký thành công. Vui lòng kiểm tra email để lấy mã xác minh.',
+      email,
+    };
+  }
+
+  async verifyOtp(email: string, otp: string): Promise<{ user: User; accessToken: string }> {
+    const user = await this.userRepository.findOne({
+      where: { email },
+      relations: ['profile'],
+    });
+
+    if (!user) {
+      throw new BadRequestException('Không tìm thấy tài khoản với email này');
+    }
+
+    if (user.emailVerified) {
+      throw new BadRequestException('Tài khoản đã được xác minh trước đó');
+    }
+
+    if (
+      !user.emailVerificationToken ||
+      !user.emailVerificationExpires ||
+      user.emailVerificationExpires < new Date()
+    ) {
+      throw new BadRequestException('Mã xác minh đã hết hạn. Vui lòng yêu cầu gửi lại mã.');
+    }
+
+    if (user.emailVerificationToken !== otp) {
+      throw new BadRequestException('Mã xác minh không đúng');
+    }
+
+    // Xác minh thành công
+    user.emailVerified = true;
+    user.emailVerificationToken = null;
+    user.emailVerificationExpires = null;
+    user.lastLoginAt = new Date();
+    await this.userRepository.save(user);
+
+    // Cấp token để tự đăng nhập
     const payload: JwtPayload = {
-      sub: savedUser.id,
-      email: savedUser.email,
-      role: savedUser.role,
+      sub: user.id,
+      email: user.email,
+      role: user.role,
     };
 
     const accessToken = this.jwtService.sign(payload);
 
-    // Return user without password
-    const { password: _, ...userWithoutPassword } = savedUser;
+    const { password: _, ...userWithoutPassword } = user;
 
     return {
       user: userWithoutPassword as User,
       accessToken,
+    };
+  }
+
+  async resendOtp(email: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findOne({
+      where: { email },
+      relations: ['profile'],
+    });
+
+    // Không tiết lộ tài khoản có tồn tại hay không
+    if (!user || user.emailVerified) {
+      return {
+        message: 'Nếu email hợp lệ và chưa xác minh, mã xác minh mới đã được gửi.',
+      };
+    }
+
+    const otp = this.generateOtp();
+    user.emailVerificationToken = otp;
+    user.emailVerificationExpires = this.getOtpExpiry();
+    await this.userRepository.save(user);
+
+    const name = user.profile?.name || 'bạn';
+    await this.emailService.sendVerificationOtpEmail(email, name, otp);
+
+    return {
+      message: 'Nếu email hợp lệ và chưa xác minh, mã xác minh mới đã được gửi.',
     };
   }
 
@@ -110,6 +205,14 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Chặn đăng nhập khi email chưa được xác minh
+    if (!user.emailVerified) {
+      throw new ForbiddenException({
+        code: 'EMAIL_NOT_VERIFIED',
+        message: 'Tài khoản chưa xác minh email. Vui lòng nhập mã OTP để kích hoạt.',
+      });
     }
 
     // Update last login

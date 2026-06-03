@@ -1,6 +1,6 @@
 import { apiClient } from '@/lib/api/client'
 import { API_ENDPOINTS } from '@/lib/api/config'
-import type { LoginRequest, RegisterRequest, AuthResponse, User } from '@/types'
+import type { LoginRequest, RegisterRequest, AuthResponse, RegisterResponse, User } from '@/types'
 
 class AuthService {
   async login(credentials: LoginRequest): Promise<AuthResponse> {
@@ -19,13 +19,23 @@ class AuthService {
     return response
   }
 
-  async register(userData: RegisterRequest): Promise<AuthResponse> {
-    const response = await apiClient.post<AuthResponse>(
+  async register(userData: RegisterRequest): Promise<RegisterResponse> {
+    // Đăng ký xong KHÔNG nhận token: cần xác minh OTP trước.
+    const response = await apiClient.post<RegisterResponse>(
       API_ENDPOINTS.AUTH.REGISTER,
       userData
     )
-    
-    // Store tokens and user info
+
+    return response
+  }
+
+  async verifyOtp(email: string, otp: string): Promise<AuthResponse> {
+    const response = await apiClient.post<AuthResponse>(
+      API_ENDPOINTS.AUTH.VERIFY_OTP,
+      { email, otp }
+    )
+
+    // Xác minh thành công -> tự đăng nhập (lưu token + user)
     apiClient.setToken(response.accessToken)
     if (response.refreshToken) {
       localStorage.setItem('refresh_token', response.refreshToken)
@@ -33,6 +43,10 @@ class AuthService {
     localStorage.setItem('user_info', JSON.stringify(response.user))
 
     return response
+  }
+
+  async resendOtp(email: string): Promise<void> {
+    await apiClient.post(API_ENDPOINTS.AUTH.RESEND_OTP, { email })
   }
 
   async logout(): Promise<void> {

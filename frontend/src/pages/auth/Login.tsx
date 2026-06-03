@@ -38,6 +38,18 @@ export default function Login() {
         authService.redirectAfterLogin()
       }
     } catch (err: any) {
+      // Tài khoản chưa xác minh email -> chuyển sang trang nhập OTP và gửi lại mã
+      if (err.response?.data?.code === 'EMAIL_NOT_VERIFIED') {
+        try {
+          await authService.resendOtp(formData.email)
+        } catch {
+          // Bỏ qua lỗi gửi lại mã, vẫn cho người dùng vào trang nhập OTP
+        }
+        const params = new URLSearchParams({ email: formData.email })
+        if (returnUrl) params.set('returnUrl', returnUrl)
+        navigate(`/auth/verify-otp?${params.toString()}`)
+        return
+      }
       setError(err.response?.data?.message || 'Đăng nhập thất bại')
     } finally {
       setLoading(false)

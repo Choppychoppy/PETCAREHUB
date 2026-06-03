@@ -435,6 +435,12 @@ export interface AuthResponse {
   refreshToken?: string  // Optional since backend doesn't return it yet
 }
 
+// Đăng ký không trả token: phải xác minh OTP trước
+export interface RegisterResponse {
+  message: string
+  email: string
+}
+
 // Search Types
 export interface SearchFilters {
   query?: string

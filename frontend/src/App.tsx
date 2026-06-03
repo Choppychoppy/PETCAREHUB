@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Login from '@/pages/auth/Login'
 import Register from '@/pages/auth/Register'
+import VerifyOtp from '@/pages/auth/VerifyOtp'
 import AdminLayout from '@/layouts/AdminLayout'
 import ClientLayout from '@/layouts/ClientLayout'
 import AdminDashboard from '@/pages/admin/Dashboard'
@@ -75,6 +76,7 @@ function App() {
         {/* Auth Routes - redirect to home if already logged in */}
         <Route path="/auth/login" element={<AuthRoute><Login /></AuthRoute>} />
         <Route path="/auth/register" element={<AuthRoute><Register /></AuthRoute>} />
+        <Route path="/auth/verify-otp" element={<AuthRoute><VerifyOtp /></AuthRoute>} />
         
         {/* Client Routes */}
         <Route path="/" element={<ClientLayout><Home /></ClientLayout>} />

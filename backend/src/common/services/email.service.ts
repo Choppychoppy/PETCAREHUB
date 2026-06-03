@@ -92,6 +92,48 @@ export class EmailService {
     await this.sendEmail(email, subject, '', html);
   }
 
+  async sendVerificationOtpEmail(email: string, name: string, otp: string): Promise<void> {
+    const subject = 'Mã xác minh tài khoản - PetCare Hub';
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #2E86AB; margin: 0;">🐾 PetCare Hub</h1>
+        </div>
+
+        <h2 style="color: #333;">Xin chào ${name}!</h2>
+
+        <p style="color: #555; line-height: 1.6;">
+          Cảm ơn bạn đã đăng ký tài khoản tại PetCare Hub. Vui lòng nhập mã xác minh bên dưới
+          để hoàn tất việc đăng ký:
+        </p>
+
+        <div style="background-color: #f8f9fa; padding: 24px; border-radius: 8px; margin: 24px 0; text-align: center; border: 1px dashed #2E86AB;">
+          <div style="font-size: 36px; font-weight: bold; letter-spacing: 10px; color: #2E86AB;">
+            ${otp}
+          </div>
+        </div>
+
+        <p style="color: #555; line-height: 1.6;">
+          Mã xác minh này sẽ <strong>hết hạn sau 15 phút</strong>. Vui lòng không chia sẻ mã này
+          cho bất kỳ ai.
+        </p>
+
+        <p style="color: #555; line-height: 1.6;">
+          Nếu bạn không thực hiện đăng ký này, vui lòng bỏ qua email này.
+        </p>
+
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+          <p style="color: #888; font-size: 14px;">
+            Trân trọng,<br>
+            <strong>Đội ngũ PetCare Hub</strong>
+          </p>
+        </div>
+      </div>
+    `;
+
+    await this.sendEmail(email, subject, `Mã xác minh PetCare Hub của bạn là: ${otp} (hết hạn sau 15 phút).`, html);
+  }
+
   async sendPasswordResetEmail(email: string, resetToken: string): Promise<void> {
     const resetUrl = `${this.configService.get('FRONTEND_URL')}/reset-password?token=${resetToken}`;
     const subject = 'Đặt lại mật khẩu - PetCare Hub';

@@ -98,6 +98,7 @@ claude.md
 test-results/
 playwright-report/
 playwright/.cache/
+screenshots/
 
 *.md
 *.docx
