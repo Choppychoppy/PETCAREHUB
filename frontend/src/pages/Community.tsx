@@ -37,7 +37,8 @@ export default function Community() {
   const fetchPosts = async () => {
     try {
       setLoading(true)
-      const response = await communityService.getPosts({ type: 'user', limit: 20 })
+      // Lấy tất cả bài viết do người dùng tạo (kể cả dữ liệu cũ type 'user_post' và câu hỏi)
+      const response = await communityService.getPosts({ types: 'user,user_post,question', limit: 20 })
       setPosts(response.data || [])
     } catch (error) {
       console.error('Failed to fetch posts:', error)

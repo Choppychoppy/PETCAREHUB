@@ -30,6 +30,15 @@ export class FilterPostDto {
   @IsEnum(['blog', 'user', 'user_post', 'news', 'question'])
   type?: string;
 
+  @ApiProperty({
+    required: false,
+    description:
+      'Lọc theo nhiều loại bài viết, ngăn cách bởi dấu phẩy (vd: user,user_post,question)',
+  })
+  @IsOptional()
+  @IsString()
+  types?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsUUID()

@@ -9,6 +9,7 @@ class CommunityService {
    */
   async getPosts(params?: {
     type?: 'blog' | 'user' | 'news' | 'question'
+    types?: string
     page?: number
     limit?: number
     userId?: string

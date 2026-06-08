@@ -112,32 +112,36 @@ const Home = () => {
     {
       image: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=300&h=300&fit=crop',
       name: 'Thức ăn Royal Canin',
-      price: '450.000đ',
-      originalPrice: '500.000đ',
+      price: 450000,
+      comparePrice: 500000,
+      stockQuantity: 120,
       rating: 4.8,
       category: 'Thức ăn'
     },
     {
       image: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=300&h=300&fit=crop',
       name: 'Đồ chơi bóng tennis',
-      price: '85.000đ',
-      originalPrice: '100.000đ',
+      price: 85000,
+      comparePrice: 100000,
+      stockQuantity: 60,
       rating: 4.5,
       category: 'Đồ chơi'
     },
     {
       image: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=300&h=300&fit=crop',
       name: 'Vòng cổ thời trang',
-      price: '120.000đ',
-      originalPrice: null,
+      price: 120000,
+      comparePrice: null,
+      stockQuantity: 85,
       rating: 4.7,
       category: 'Phụ kiện'
     },
     {
       image: 'https://images.unsplash.com/photo-1544568100-847a948585b9?w=300&h=300&fit=crop',
       name: 'Giường ngủ êm ái',
-      price: '280.000đ',
-      originalPrice: '350.000đ',
+      price: 280000,
+      comparePrice: 350000,
+      stockQuantity: 40,
       rating: 4.9,
       category: 'Phụ kiện'
     }
@@ -530,8 +534,8 @@ const Home = () => {
                       </div>
                     )}
                   </div>
-                  
-                  <div >
+
+                  <div className="p-5">
                     {/* Product name and brand */}
                     <div className="mb-4">
                       <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 leading-tight">
@@ -744,7 +748,7 @@ const Home = () => {
               <MapPin className="w-6 h-6" />
               <div>
                 <p className="font-semibold">Địa chỉ</p>
-                <p className="text-white/80">123 Nguyễn Văn Cừ, Q1, TP.HCM</p>
+                <p className="text-white/80">Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội</p>
               </div>
             </div>
           </div>

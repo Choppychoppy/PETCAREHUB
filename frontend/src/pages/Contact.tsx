@@ -96,8 +96,8 @@ const Contact = () => {
     {
       icon: MapPin,
       title: 'Địa chỉ phòng khám',
-      content: '123 Nguyễn Văn Cừ, Q1, TP.HCM',
-      description: 'Gần chợ Bến Thành',
+      content: 'Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội',
+      description: 'Gần Đại học Bách Khoa Hà Nội',
       color: 'bg-red-100 text-red-600'
     },
     {
@@ -397,7 +397,7 @@ const Contact = () => {
                   </div>
                   <h4 className="font-bold text-gray-900 mb-2">Được chứng nhận</h4>
                   <p className="text-sm text-gray-600 mb-4">
-                    Phòng khám được cấp phép hoạt động bởi Sở Y tế TP.HCM
+                    Phòng khám được cấp phép hoạt động bởi Sở Y tế Hà Nội
                   </p>
                   <div className="flex items-center justify-center gap-2 text-sm text-green-600">
                     <CheckCircle className="w-4 h-4" />
@@ -444,15 +444,20 @@ const Contact = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Tìm đường đến phòng khám</h2>
-            <p className="text-gray-600">Địa chỉ: 123 Nguyễn Văn Cừ Nối Dài, An Khánh, Ninh Kiều, Cần Thơ</p>
+            <p className="text-gray-600">Địa chỉ: Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội</p>
           </div>
-          
-          <div className="bg-gray-300 rounded-xl h-96 flex items-center justify-center">
-            <div className="text-center text-gray-600">
-              <MapPin className="w-12 h-12 mx-auto mb-4" />
-              <p className="text-lg font-medium">Google Maps sẽ được tích hợp ở đây</p>
-              <p className="text-sm">Hiển thị vị trí phòng khám và hướng dẫn đường đi</p>
-            </div>
+
+          <div className="rounded-xl h-96 overflow-hidden shadow-md border border-gray-200">
+            <iframe
+              title="Bản đồ phòng khám PetCare Hub - Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội"
+              src="https://www.google.com/maps?q=S%E1%BB%91%201%20%C4%90%E1%BA%A1i%20C%E1%BB%93%20Vi%E1%BB%87t%2C%20Hai%20B%C3%A0%20Tr%C6%B0ng%2C%20H%C3%A0%20N%E1%BB%99i&output=embed"
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            ></iframe>
           </div>
         </div>
       </section>

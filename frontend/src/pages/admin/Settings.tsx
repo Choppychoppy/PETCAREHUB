@@ -295,7 +295,7 @@ const Settings = () => {
                   <Input
                     value={businessSettings.businessAddress}
                     onChange={(e) => setBusinessSettings({...businessSettings, businessAddress: e.target.value})}
-                    placeholder="123 Đường NVCND, An Khánh, Ninh Kiều, Cần Thơ"
+                    placeholder="Số 1 Đại Cồ Việt, Hai Bà Trưng, Hà Nội"
                   />
                 </div>
 

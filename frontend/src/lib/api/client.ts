@@ -43,16 +43,30 @@ class ApiClient {
       async (error) => {
         const originalRequest = error.config
 
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        // Các endpoint xác thực (đăng nhập, đăng ký, refresh, OTP) KHÔNG được tự refresh
+        // hoặc redirect khi gặp 401 — lỗi phải được trả về cho form xử lý (vd: sai mật khẩu
+        // thì giữ lại giao diện đăng nhập và hiển thị thông báo lỗi).
+        const requestUrl: string = originalRequest?.url || ''
+        const isAuthEndpoint = /\/auth\/(login|register|refresh|verify-otp|resend-otp)/.test(requestUrl)
+
+        if (
+          error.response?.status === 401 &&
+          !originalRequest._retry &&
+          !isAuthEndpoint
+        ) {
           originalRequest._retry = true
-          
+
           try {
             await this.refreshToken()
             return this.client(originalRequest)
           } catch (refreshError) {
             this.clearToken()
-            // Redirect to login or emit logout event
-            window.location.href = '/login'
+            localStorage.removeItem('refresh_token')
+            localStorage.removeItem('user_info')
+            // Chỉ redirect khi không đang ở sẵn trang đăng nhập (tránh reload mất thông báo)
+            if (!window.location.pathname.startsWith('/auth/login')) {
+              window.location.href = '/auth/login'
+            }
             return Promise.reject(refreshError)
           }
         }

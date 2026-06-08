@@ -427,12 +427,12 @@ const Services = () => {
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E86AB]/20 focus:border-[#2E86AB]"
           >
             <option value="">Tất cả loại</option>
-            <option value="dog">Chó</option>
-            <option value="cat">Mèo</option>
-            <option value="bird">Chim</option>
-            <option value="fish">Cá</option>
-            <option value="rabbit">Thỏ</option>
-            <option value="hamster">Chuột hamster</option>
+            <option value="Chó">Chó</option>
+            <option value="Mèo">Mèo</option>
+            <option value="Chim">Chim</option>
+            <option value="Cá">Cá</option>
+            <option value="Thỏ">Thỏ</option>
+            <option value="Chuột hamster">Chuột hamster</option>
           </select>
         </Card>
 
@@ -545,7 +545,7 @@ const Services = () => {
               Loại thú cưng phù hợp *
             </label>
             <div className="space-y-2">
-              {['dog', 'cat', 'bird', 'fish', 'rabbit', 'hamster'].map((petType) => (
+              {['Chó', 'Mèo', 'Chim', 'Cá', 'Thỏ', 'Chuột hamster'].map((petType) => (
                 <label key={petType} className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -559,13 +559,8 @@ const Services = () => {
                     }}
                     className="w-4 h-4 text-[#2E86AB] border-gray-300 rounded focus:ring-[#2E86AB]"
                   />
-                  <span className="text-sm text-gray-700 capitalize">
-                    {petType === 'dog' ? 'Chó' : 
-                     petType === 'cat' ? 'Mèo' :
-                     petType === 'bird' ? 'Chim' :
-                     petType === 'fish' ? 'Cá' :
-                     petType === 'rabbit' ? 'Thỏ' :
-                     petType === 'hamster' ? 'Chuột hamster' : petType}
+                  <span className="text-sm text-gray-700">
+                    {petType}
                   </span>
                 </label>
               ))}

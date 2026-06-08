@@ -65,7 +65,8 @@ export default function Inventory() {
             ...product,
             availableStock: product.stockQuantity || 0,
             reservedStock: 0, // Có thể lấy từ pending orders
-            lowStockThreshold: 10 // Default threshold
+            // Dùng ngưỡng tồn kho thấp thực tế của từng sản phẩm (cột lowStockThreshold trong DB)
+            lowStockThreshold: (product as any).lowStockThreshold ?? 10
           }))
           
           if ('meta' in response && response.meta) {
@@ -81,7 +82,7 @@ export default function Inventory() {
             ...product,
             availableStock: product.stockQuantity || 0,
             reservedStock: 0,
-            lowStockThreshold: 10
+            lowStockThreshold: (product as any).lowStockThreshold ?? 10
           }))
         }
       }

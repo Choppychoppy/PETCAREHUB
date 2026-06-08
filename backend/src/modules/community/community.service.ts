@@ -39,6 +39,7 @@ export class CommunityService {
       page = 1,
       limit = 10,
       type,
+      types,
       categoryId,
       authorId,
       search,
@@ -53,7 +54,16 @@ export class CommunityService {
       .leftJoinAndSelect('post.category', 'category')
       .where('post.status = :status', { status });
 
-    if (type) {
+    // Ưu tiên lọc theo danh sách nhiều loại (types) nếu có, nếu không thì lọc theo 1 loại (type)
+    if (types) {
+      const typeList = types
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+      if (typeList.length > 0) {
+        queryBuilder.andWhere('post.type IN (:...typeList)', { typeList });
+      }
+    } else if (type) {
       queryBuilder.andWhere('post.type = :type', { type });
     }
 

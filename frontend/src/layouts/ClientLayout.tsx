@@ -93,12 +93,12 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
         <div className="px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             {/* Logo */}
-            <div className="flex items-center">
+            <div className="flex items-center flex-shrink-0">
               <Link to="/" className="flex items-center gap-3">
-                <div className="text-3xl">🐾</div>
-                <div>
-                  <h1 className="text-xl font-bold text-gray-900">PetCare Hub</h1>
-                  <p className="text-xs text-gray-500 -mt-1">Chăm sóc thú cưng tận tâm</p>
+                <div className="text-3xl flex-shrink-0">🐾</div>
+                <div className="min-w-0">
+                  <h1 className="text-xl font-bold text-gray-900 whitespace-nowrap leading-tight">PetCare Hub</h1>
+                  <p className="text-xs text-gray-500 -mt-1 whitespace-nowrap">Chăm sóc thú cưng tận tâm</p>
                 </div>
               </Link>
             </div>
@@ -507,7 +507,7 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
                   <MapPin className="w-5 h-5 text-emerald-400 mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="font-medium text-white">Địa chỉ phòng khám</p>
-                    <p>123 Nguyễn Văn Cừ Nối Dài<br />An Khánh, Ninh Kiều, Cần Thơ</p>
+                    <p>Số 1 Đại Cồ Việt<br />Quận Hai Bà Trưng, Hà Nội</p>
                   </div>
                 </li>
                 <li className="flex items-start gap-3 text-gray-300">

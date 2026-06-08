@@ -1,7 +1,7 @@
-import { ReactNode, useState } from 'react'
+import { ReactNode, useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Button, Avatar, Badge } from '@/components/common'
-import { authService } from '@/services'
+import { Button, Avatar } from '@/components/common'
+import { authService, adminService } from '@/services'
 import {
   BarChart3,
   Calendar,
@@ -96,12 +96,121 @@ const menuItems = [
   }
 ]
 
+// Tính thời gian tương đối từ một mốc thời gian (vd: "Vừa xong", "5 phút trước")
+function formatRelativeTime(dateInput?: string | Date): string {
+  if (!dateInput) return ''
+  const date = new Date(dateInput)
+  const diffMs = Date.now() - date.getTime()
+  if (isNaN(diffMs)) return ''
+  const sec = Math.floor(diffMs / 1000)
+  if (sec < 60) return 'Vừa xong'
+  const min = Math.floor(sec / 60)
+  if (min < 60) return `${min} phút trước`
+  const hour = Math.floor(min / 60)
+  if (hour < 24) return `${hour} giờ trước`
+  const day = Math.floor(hour / 24)
+  if (day < 30) return `${day} ngày trước`
+  return date.toLocaleDateString('vi-VN')
+}
+
+interface AdminNotification {
+  id: string
+  type: 'appointment' | 'order' | 'support'
+  title: string
+  description: string
+  createdAt?: string | Date
+  link: string
+}
+
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const location = useLocation()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [notificationOpen, setNotificationOpen] = useState(false)
+  const [notifications, setNotifications] = useState<AdminNotification[]>([])
   const currentUser = authService.getCachedUser()
+
+  // Lấy thông báo thật từ lịch hẹn mới, đơn hàng mới và yêu cầu hỗ trợ mới
+  useEffect(() => {
+    let mounted = true
+
+    const fetchNotifications = async () => {
+      try {
+        const [appointmentsRes, ordersRes, supportRes] = await Promise.allSettled([
+          adminService.getAppointments({ status: 'pending', limit: 5 }),
+          adminService.getOrders({ status: 'pending', limit: 5 }),
+          adminService.getSupportTickets({ status: 'open', limit: 5 }),
+        ])
+
+        const items: AdminNotification[] = []
+
+        if (appointmentsRes.status === 'fulfilled') {
+          const list = (appointmentsRes.value as any)?.data || []
+          list.forEach((a: any) => {
+            items.push({
+              id: `appointment-${a.id}`,
+              type: 'appointment',
+              title: 'Lịch hẹn mới',
+              description: 'Có lịch hẹn mới cần xử lý',
+              createdAt: a.createdAt,
+              link: '/admin/appointments',
+            })
+          })
+        }
+
+        if (ordersRes.status === 'fulfilled') {
+          const list = (ordersRes.value as any)?.data || []
+          list.forEach((o: any) => {
+            items.push({
+              id: `order-${o.id}`,
+              type: 'order',
+              title: 'Đơn hàng mới',
+              description: o.orderNumber
+                ? `Đơn hàng ${o.orderNumber} cần xác nhận`
+                : 'Có đơn hàng mới cần xác nhận',
+              createdAt: o.createdAt,
+              link: '/admin/orders',
+            })
+          })
+        }
+
+        if (supportRes.status === 'fulfilled') {
+          const list = (supportRes.value as any)?.data || []
+          list.forEach((s: any) => {
+            items.push({
+              id: `support-${s.id}`,
+              type: 'support',
+              title: 'Yêu cầu hỗ trợ',
+              description: s.subject || 'Có yêu cầu hỗ trợ mới',
+              createdAt: s.createdAt,
+              link: '/admin/support',
+            })
+          })
+        }
+
+        // Sắp xếp mới nhất lên đầu
+        items.sort((a, b) => {
+          const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0
+          const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0
+          return tb - ta
+        })
+
+        if (mounted) setNotifications(items)
+      } catch (error) {
+        console.error('Không thể tải thông báo:', error)
+      }
+    }
+
+    fetchNotifications()
+    // Cập nhật lại mỗi 60s để thời gian hiển thị luôn chính xác
+    const timer = setInterval(fetchNotifications, 60000)
+    return () => {
+      mounted = false
+      clearInterval(timer)
+    }
+  }, [])
+
+  const notificationCount = notifications.length
 
   const isActiveRoute = (path: string) => {
     return location.pathname === path || location.pathname.startsWith(path + '/')
@@ -239,59 +348,53 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                     onClick={() => setNotificationOpen(!notificationOpen)}
                   >
                     <Bell className="w-5 h-5 text-slate-600" />
-                    <div className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full font-bold shadow-lg">
-                      3
-                    </div>
+                    {notificationCount > 0 && (
+                      <div className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs min-w-[1.25rem] h-5 px-1 flex items-center justify-center rounded-full font-bold shadow-lg">
+                        {notificationCount > 99 ? '99+' : notificationCount}
+                      </div>
+                    )}
                   </Button>
 
                   {notificationOpen && (
                     <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-xl border border-slate-200/60 py-2 backdrop-blur-md z-50">
-                      <div className="px-4 py-3 border-b border-slate-200/60">
+                      <div className="px-4 py-3 border-b border-slate-200/60 flex items-center justify-between">
                         <h3 className="font-semibold text-slate-900">Thông báo</h3>
+                        {notificationCount > 0 && (
+                          <span className="text-xs font-medium text-slate-500">{notificationCount} mới</span>
+                        )}
                       </div>
                       <div className="max-h-80 overflow-y-auto">
-                        <Link
-                          to="/admin/appointments"
-                          className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors"
-                          onClick={() => setNotificationOpen(false)}
-                        >
-                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                            <Calendar className="w-4 h-4 text-blue-600" />
+                        {notifications.length === 0 ? (
+                          <div className="px-4 py-8 text-center text-sm text-slate-400">
+                            Không có thông báo mới
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-900">Lịch hẹn mới</p>
-                            <p className="text-xs text-slate-500 truncate">Có lịch hẹn mới cần xử lý</p>
-                            <p className="text-xs text-slate-400 mt-1">Vừa xong</p>
-                          </div>
-                        </Link>
-                        <Link
-                          to="/admin/orders"
-                          className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors"
-                          onClick={() => setNotificationOpen(false)}
-                        >
-                          <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                            <Package className="w-4 h-4 text-green-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-900">Đơn hàng mới</p>
-                            <p className="text-xs text-slate-500 truncate">Có đơn hàng mới cần xác nhận</p>
-                            <p className="text-xs text-slate-400 mt-1">5 phút trước</p>
-                          </div>
-                        </Link>
-                        <Link
-                          to="/admin/support"
-                          className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors"
-                          onClick={() => setNotificationOpen(false)}
-                        >
-                          <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                            <MessageSquare className="w-4 h-4 text-orange-600" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-900">Yêu cầu hỗ trợ</p>
-                            <p className="text-xs text-slate-500 truncate">Có yêu cầu hỗ trợ mới</p>
-                            <p className="text-xs text-slate-400 mt-1">10 phút trước</p>
-                          </div>
-                        </Link>
+                        ) : (
+                          notifications.map((noti) => {
+                            const iconConfig = {
+                              appointment: { Icon: Calendar, bg: 'bg-blue-100', color: 'text-blue-600' },
+                              order: { Icon: Package, bg: 'bg-green-100', color: 'text-green-600' },
+                              support: { Icon: MessageSquare, bg: 'bg-orange-100', color: 'text-orange-600' },
+                            }[noti.type]
+                            const NotiIcon = iconConfig.Icon
+                            return (
+                              <Link
+                                key={noti.id}
+                                to={noti.link}
+                                className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors"
+                                onClick={() => setNotificationOpen(false)}
+                              >
+                                <div className={`w-8 h-8 rounded-full ${iconConfig.bg} flex items-center justify-center flex-shrink-0`}>
+                                  <NotiIcon className={`w-4 h-4 ${iconConfig.color}`} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-slate-900">{noti.title}</p>
+                                  <p className="text-xs text-slate-500 truncate">{noti.description}</p>
+                                  <p className="text-xs text-slate-400 mt-1">{formatRelativeTime(noti.createdAt)}</p>
+                                </div>
+                              </Link>
+                            )
+                          })
+                        )}
                       </div>
                       <div className="px-4 py-3 border-t border-slate-200/60">
                         <Link

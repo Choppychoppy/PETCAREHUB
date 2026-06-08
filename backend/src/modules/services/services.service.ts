@@ -53,8 +53,10 @@ export class ServicesService {
     }
 
     if (petType) {
+      // petTypes lưu dạng JSON array (vd: ["Chó","Mèo"]). JSON_CONTAINS cần giá trị
+      // scalar JSON ("Chó") chứ không phải mảng (["Chó"]) thì mới khớp đúng phần tử.
       queryBuilder.andWhere('JSON_CONTAINS(service.petTypes, :petType)', {
-        petType: JSON.stringify([petType]),
+        petType: JSON.stringify(petType),
       });
     }
 
