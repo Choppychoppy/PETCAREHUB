@@ -1,22 +1,194 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, Like } from 'typeorm';
+import { Repository, Between, Like, IsNull, Brackets } from 'typeorm';
 import { Appointment } from './entities/appointment.entity';
+import { User } from '../users/entities/user.entity';
+import { Service } from '../services/entities/service.entity';
 import { AppointmentStatus } from '../../common/enums/appointment-status.enum';
+import { UserRole } from '../../common/enums/user-role.enum';
+import { CreateStaffAppointmentDto } from './dto/create-staff-appointment.dto';
 
 @Injectable()
 export class AppointmentsService {
   constructor(
     @InjectRepository(Appointment)
     private appointmentRepository: Repository<Appointment>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
+    @InjectRepository(Service)
+    private serviceRepository: Repository<Service>,
   ) {}
 
   async create(userId: string, createAppointmentDto: any) {
     const appointment = this.appointmentRepository.create({
       ...createAppointmentDto,
       userId,
+      customerType: 'registered',
     });
     return this.appointmentRepository.save(appointment);
+  }
+
+  /**
+   * Chuẩn hóa số điện thoại để đối chiếu (bỏ khoảng trắng, dấu chấm, gạch nối,
+   * và quy đổi tiền tố +84 về 0).
+   */
+  private normalizePhone(phone?: string): string | null {
+    if (!phone) return null;
+    let p = phone.replace(/[\s.\-()]/g, '');
+    if (p.startsWith('+84')) p = '0' + p.slice(3);
+    else if (p.startsWith('84') && p.length >= 10) p = '0' + p.slice(2);
+    return p || null;
+  }
+
+  /**
+   * Admin / nhân viên tạo lịch hẹn cho khách hàng (đã có hoặc chưa có tài khoản).
+   * - Admin: được chọn bất kỳ nhân viên phụ trách.
+   * - Nhân viên: chỉ được tự tạo cho chính mình (staffId ép về id của họ).
+   */
+  async createByStaff(creator: User, dto: CreateStaffAppointmentDto) {
+    // Phân quyền gán nhân viên phụ trách
+    let staffId: string | null = null;
+    if (creator.role === UserRole.STAFF) {
+      // Nhân viên chỉ được tạo lịch cho chính họ
+      staffId = creator.id;
+    } else if (creator.role === UserRole.ADMIN) {
+      staffId = dto.staffId || null;
+      if (staffId) {
+        const staff = await this.userRepository.findOne({ where: { id: staffId } });
+        if (!staff || (staff.role !== UserRole.STAFF && staff.role !== UserRole.ADMIN)) {
+          throw new BadRequestException('Nhân viên được phân công không hợp lệ');
+        }
+      }
+    } else {
+      throw new ForbiddenException('Bạn không có quyền tạo lịch hẹn cho khách hàng');
+    }
+
+    // Lấy dịch vụ để suy ra giá / thời lượng nếu không truyền vào
+    const service = await this.serviceRepository.findOne({
+      where: { id: dto.serviceId },
+    });
+    if (!service) {
+      throw new BadRequestException('Dịch vụ không tồn tại');
+    }
+
+    const appointmentDate = new Date(dto.appointmentDate);
+    const base: Partial<Appointment> = {
+      serviceId: dto.serviceId,
+      appointmentDate,
+      dateTime: appointmentDate,
+      duration: dto.duration ?? service.duration ?? 30,
+      price: dto.price ?? Number(service.price) ?? 0,
+      staffId: staffId || undefined,
+      notes: dto.notes,
+      specialRequests: dto.specialRequests,
+      createdBy: creator.id,
+      // Lịch do admin/nhân viên tạo coi như đã xác nhận
+      status: AppointmentStatus.CONFIRMED,
+      isArchived: dto.isArchived ?? false,
+    };
+
+    if (dto.customerType === 'registered') {
+      const customer = await this.userRepository.findOne({
+        where: { id: dto.userId },
+      });
+      if (!customer) {
+        throw new BadRequestException('Khách hàng không tồn tại');
+      }
+      base.customerType = 'registered';
+      base.userId = dto.userId;
+      base.petId = dto.petId || undefined;
+    } else {
+      // Khách vãng lai: lưu thông tin liên hệ để làm hồ sơ và kết nối sau này
+      base.customerType = 'guest';
+      base.userId = undefined;
+      base.guestName = dto.guestName;
+      base.guestPhone = this.normalizePhone(dto.guestPhone) || dto.guestPhone;
+      base.guestEmail = dto.guestEmail;
+      base.guestPetName = dto.guestPetName;
+      base.guestPetSpecies = dto.guestPetSpecies;
+    }
+
+    const appointment = this.appointmentRepository.create(base);
+    const saved = await this.appointmentRepository.save(appointment);
+    return this.findOne(saved.id);
+  }
+
+  /**
+   * Khi khách vãng lai đăng ký tài khoản, kết nối các lịch hẹn (và lịch sử khám)
+   * đã lưu theo số điện thoại với tài khoản mới.
+   * Trả về số lịch hẹn được kết nối.
+   */
+  async linkGuestAppointmentsByPhone(phone: string, userId: string): Promise<number> {
+    const normalized = this.normalizePhone(phone);
+    if (!normalized) return 0;
+
+    const guestAppointments = await this.appointmentRepository.find({
+      where: { customerType: 'guest', userId: IsNull() },
+    });
+
+    const matched = guestAppointments.filter(
+      (a) => this.normalizePhone(a.guestPhone) === normalized,
+    );
+
+    for (const appt of matched) {
+      appt.userId = userId;
+      appt.customerType = 'registered';
+      // Giữ nguyên thông tin guest để truy vết, nhưng gắn về tài khoản
+      appt.isArchived = false;
+    }
+
+    if (matched.length > 0) {
+      await this.appointmentRepository.save(matched);
+    }
+    return matched.length;
+  }
+
+  /** Danh sách nhân viên (và admin) để phân công phụ trách. */
+  async getStaffMembers() {
+    const staff = await this.userRepository.find({
+      where: [{ role: UserRole.STAFF }, { role: UserRole.ADMIN }],
+      relations: ['profile'],
+      order: { createdAt: 'ASC' },
+    });
+    return staff.map((u) => ({
+      id: u.id,
+      email: u.email,
+      role: u.role,
+      name: u.profile?.name || u.email,
+    }));
+  }
+
+  /** Tìm kiếm khách hàng đã có tài khoản theo tên / email / số điện thoại. */
+  async searchCustomers(q: string) {
+    const qb = this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.profile', 'profile')
+      .leftJoinAndSelect('user.pets', 'pets')
+      .where('user.role = :role', { role: UserRole.USER });
+
+    if (q && q.trim()) {
+      qb.andWhere(
+        new Brackets((w) => {
+          w.where('profile.name LIKE :q', { q: `%${q}%` })
+            .orWhere('user.email LIKE :q', { q: `%${q}%` })
+            .orWhere('profile.phone LIKE :q', { q: `%${q}%` });
+        }),
+      );
+    }
+
+    const users = await qb.orderBy('user.createdAt', 'DESC').take(20).getMany();
+    return users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      name: u.profile?.name || u.email,
+      phone: u.profile?.phone || null,
+      pets: (u.pets || []).map((p) => ({ id: p.id, name: p.name, species: p.species })),
+    }));
   }
 
   async findAll(
@@ -26,6 +198,7 @@ export class AppointmentsService {
     date?: string,
     search?: string,
     userId?: string,
+    staffId?: string,
   ) {
     // Convert to numbers in case they come as strings from query parameters
     const pageNum = Number(page) || 1;
@@ -44,6 +217,11 @@ export class AppointmentsService {
     // Day la fix cho lo hong cu, nguoi dung thuong nhin thay lich hen cua user khac.
     if (userId) {
       queryBuilder.andWhere('appointment.userId = :userId', { userId });
+    }
+
+    // Nhân viên chỉ xem các lịch hẹn được phân công cho mình
+    if (staffId) {
+      queryBuilder.andWhere('appointment.staffId = :staffId', { staffId });
     }
 
     // Filter by status
@@ -69,7 +247,11 @@ export class AppointmentsService {
         `(profile.name LIKE :search
           OR user.email LIKE :search
           OR pet.name LIKE :search
-          OR service.name LIKE :search)`,
+          OR service.name LIKE :search
+          OR appointment.guestName LIKE :search
+          OR appointment.guestPhone LIKE :search
+          OR appointment.guestEmail LIKE :search
+          OR appointment.guestPetName LIKE :search)`,
         { search: `%${search}%` }
       );
     }

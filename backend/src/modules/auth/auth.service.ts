@@ -15,6 +15,7 @@ import { User } from '../users/entities/user.entity';
 import { UserProfile } from '../users/entities/user-profile.entity';
 import { UserRole, UserStatus } from '../../common/enums/user-role.enum';
 import { EmailService } from '../../common/services/email.service';
+import { AppointmentsService } from '../appointments/appointments.service';
 
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -39,6 +40,7 @@ export class AuthService {
     private userProfileRepository: Repository<UserProfile>,
     private jwtService: JwtService,
     private emailService: EmailService,
+    private appointmentsService: AppointmentsService,
   ) {}
 
   // Sinh mã OTP 6 chữ số
@@ -91,6 +93,22 @@ export class AuthService {
     });
 
     await this.userProfileRepository.save(profile);
+
+    // Kết nối các lịch hẹn của khách vãng lai (đã được nhân viên tạo trước đó)
+    // với tài khoản mới dựa theo số điện thoại. Bao gồm cả lịch sử khám chữa.
+    if (phone) {
+      try {
+        const linked = await this.appointmentsService.linkGuestAppointmentsByPhone(
+          phone,
+          savedUser.id,
+        );
+        if (linked > 0) {
+          console.log(`Đã kết nối ${linked} lịch hẹn vãng lai cho tài khoản ${email}`);
+        }
+      } catch (error) {
+        console.error('Kết nối lịch hẹn vãng lai thất bại:', error);
+      }
+    }
 
     // Gửi email chứa mã OTP. Không để lỗi SMTP làm hỏng việc đăng ký:
     // tài khoản vẫn được tạo và người dùng có thể bấm "Gửi lại mã".

@@ -78,6 +78,44 @@ class AdminService {
     await apiClient.delete(API_ENDPOINTS.ADMIN.APPOINTMENT(appointmentId))
   }
 
+  // Admin/Nhân viên tạo lịch hẹn cho khách (đã có / chưa có tài khoản)
+  async createStaffAppointment(data: {
+    customerType: 'registered' | 'guest'
+    userId?: string
+    petId?: string
+    guestName?: string
+    guestPhone?: string
+    guestEmail?: string
+    guestPetName?: string
+    guestPetSpecies?: string
+    serviceId: string
+    appointmentDate: string
+    duration?: number
+    price?: number
+    staffId?: string
+    notes?: string
+    specialRequests?: string
+    isArchived?: boolean
+  }): Promise<Appointment> {
+    return await apiClient.post<Appointment>(API_ENDPOINTS.ADMIN.APPOINTMENT_CREATE_STAFF, data)
+  }
+
+  // Danh sách nhân viên để phân công phụ trách
+  async getStaffMembers(): Promise<Array<{ id: string; name: string; email: string; role: string }>> {
+    return await apiClient.get(API_ENDPOINTS.ADMIN.APPOINTMENT_STAFF_MEMBERS)
+  }
+
+  // Tìm khách hàng đã có tài khoản theo tên/email/sđt
+  async searchCustomers(q: string): Promise<Array<{
+    id: string
+    name: string
+    email: string
+    phone: string | null
+    pets: Array<{ id: string; name: string; species: string }>
+  }>> {
+    return await apiClient.get(API_ENDPOINTS.ADMIN.APPOINTMENT_SEARCH_CUSTOMERS, { params: { q } })
+  }
+
   // Order Management - sử dụng trực tiếp module orders
   async getOrders(params?: {
     page?: number;

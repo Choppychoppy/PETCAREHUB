@@ -47,13 +47,31 @@ import BlogDetail from '@/pages/BlogDetail'
 import { authService } from '@/services'
 
 // Protected Route wrapper
-function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: string }) {
+function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: string | string[] }) {
   const isAuthenticated = authService.isAuthenticated()
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/auth/login" replace />
   }
-  
+
+  // Kiểm tra phân quyền: nếu route yêu cầu vai trò cụ thể (vd: admin) mà người dùng
+  // không đúng vai trò thì KHÔNG cho vào, đẩy về trang phù hợp với vai trò của họ.
+  // role có thể là 1 vai trò hoặc danh sách vai trò được phép.
+  if (role) {
+    const userRole = authService.getUserRole()
+    const allowedRoles = Array.isArray(role) ? role : [role]
+    if (!userRole || !allowedRoles.includes(userRole)) {
+      // admin -> dashboard admin, staff -> dashboard staff, còn lại -> trang chủ
+      const fallback =
+        userRole === 'admin'
+          ? '/admin/dashboard'
+          : userRole === 'staff'
+            ? '/admin/appointments'
+            : '/'
+      return <Navigate to={fallback} replace />
+    }
+  }
+
   return <>{children}</>
 }
 
@@ -282,15 +300,15 @@ function App() {
             </ProtectedRoute>
           } 
         />
-        <Route 
-          path="/admin/appointments" 
+        <Route
+          path="/admin/appointments"
           element={
-            <ProtectedRoute role="admin">
+            <ProtectedRoute role={['admin', 'staff']}>
               <AdminLayout>
                 <Appointments />
               </AdminLayout>
             </ProtectedRoute>
-          } 
+          }
         />
         <Route
           path="/admin/orders"

@@ -17,6 +17,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { UserRole } from '../../common/enums/user-role.enum';
+import { User } from '../users/entities/user.entity';
+import { CreateStaffAppointmentDto } from './dto/create-staff-appointment.dto';
 
 @ApiTags('Appointments')
 @Controller('appointments')
@@ -34,6 +36,40 @@ export class AppointmentsController {
     return this.appointmentsService.create(userId, createAppointmentDto);
   }
 
+  @Post('staff')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.STAFF)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary:
+      'Admin/Nhân viên tạo lịch hẹn cho khách (đã có hoặc chưa có tài khoản). ' +
+      'Admin gán bất kỳ nhân viên; nhân viên tự gán cho mình.',
+  })
+  createByStaff(
+    @CurrentUser() creator: User,
+    @Body() dto: CreateStaffAppointmentDto,
+  ) {
+    return this.appointmentsService.createByStaff(creator, dto);
+  }
+
+  @Get('staff-members')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.STAFF)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Danh sách nhân viên để phân công phụ trách' })
+  getStaffMembers() {
+    return this.appointmentsService.getStaffMembers();
+  }
+
+  @Get('search-customers')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.STAFF)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Tìm khách hàng đã có tài khoản (tên/email/sđt)' })
+  searchCustomers(@Query('q') q: string = '') {
+    return this.appointmentsService.searchCustomers(q);
+  }
+
   @Get()
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth('JWT-auth')
@@ -47,10 +83,30 @@ export class AppointmentsController {
     @Query('date') date?: string,
     @Query('search') search?: string,
   ) {
-    // Admin va Staff duoc xem toan bo lich hen, user thuong chi xem cua minh.
-    const scopedUserId =
-      role === UserRole.ADMIN || role === UserRole.STAFF ? undefined : userId;
-    return this.appointmentsService.findAll(page, limit, status, date, search, scopedUserId);
+    // Admin xem toàn bộ lịch hẹn.
+    // Nhân viên chỉ xem các lịch hẹn được phân công cho mình.
+    // Người dùng thường chỉ xem lịch hẹn của chính mình.
+    let scopedUserId: string | undefined;
+    let scopedStaffId: string | undefined;
+    if (role === UserRole.ADMIN) {
+      scopedUserId = undefined;
+      scopedStaffId = undefined;
+    } else if (role === UserRole.STAFF) {
+      scopedUserId = undefined;
+      scopedStaffId = userId;
+    } else {
+      scopedUserId = userId;
+      scopedStaffId = undefined;
+    }
+    return this.appointmentsService.findAll(
+      page,
+      limit,
+      status,
+      date,
+      search,
+      scopedUserId,
+      scopedStaffId,
+    );
   }
 
   @Get(':id')

@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  Index,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Pet } from '../../pets/entities/pet.entity';
@@ -80,8 +81,45 @@ export class Appointment {
   @Column({ type: 'boolean', default: false })
   followUpSent: boolean;
 
+  // ===== Phân loại khách hàng & thông tin khách vãng lai =====
+  // 'registered' = khách đã có tài khoản; 'guest' = khách chưa có tài khoản.
+  @Column({
+    type: 'enum',
+    enum: ['registered', 'guest'],
+    default: 'registered',
+  })
+  customerType: 'registered' | 'guest';
+
+  // Thông tin khách vãng lai (chưa có tài khoản). Lưu lại để làm hồ sơ online
+  // và để kết nối với tài khoản khi khách đăng ký (đối chiếu theo số điện thoại).
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  guestName: string;
+
+  @Index()
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  guestPhone: string;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  guestEmail: string;
+
+  // Thông tin thú cưng của khách vãng lai (không có bản ghi Pet riêng)
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  guestPetName: string;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  guestPetSpecies: string;
+
+  // Người tạo lịch hẹn (admin/nhân viên). Phục vụ kiểm soát & ghi vết.
+  @Column({ type: 'uuid', nullable: true })
+  createdBy: string;
+
+  // Đánh dấu hồ sơ lưu trữ online cho khách vãng lai không quay lại.
+  @Column({ type: 'boolean', default: false })
+  isArchived: boolean;
+
   // Foreign key columns
-  @Column('uuid')
+  // userId cho phép null để hỗ trợ khách vãng lai chưa có tài khoản.
+  @Column('uuid', { nullable: true })
   userId: string;
 
   @Column('uuid', { nullable: true })

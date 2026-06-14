@@ -42,7 +42,8 @@ const menuItems = [
   {
     title: 'Quản lý lịch hẹn',
     icon: Calendar,
-    path: '/admin/appointments'
+    path: '/admin/appointments',
+    staffAllowed: true
   },
   {
     title: 'Quản lý đơn hàng',
@@ -251,7 +252,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           {/* Menu Items */}
           <nav className="flex-1 overflow-y-auto py-6">
             <div className="space-y-2 px-4">
-              {menuItems.map((item) => {
+              {menuItems
+                .filter((item) =>
+                  // Nhân viên chỉ thấy các mục được phép (vd: Quản lý lịch hẹn)
+                  authService.getUserRole() === 'staff' ? (item as any).staffAllowed : true,
+                )
+                .map((item) => {
                 const IconComponent = item.icon
                 const isActive = isActiveRoute(item.path)
                 return (

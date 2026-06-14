@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Button, Table, Modal, Input, Card, Loading, EmptyState } from '@/components/common'
 import { adminService } from '@/services/admin.service'
-import type { Appointment } from '@/types'
+import { authService } from '@/services/auth.service'
+import type { Appointment, Service } from '@/types'
 import {
   Search,
   Filter,
@@ -13,9 +14,39 @@ import {
   Check,
   X,
   AlertTriangle,
-  UserCheck
+  UserCheck,
+  Plus,
+  Phone,
+  UserPlus,
+  Archive
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+
+type CustomerType = 'registered' | 'guest'
+
+interface CustomerResult {
+  id: string
+  name: string
+  email: string
+  phone: string | null
+  pets: Array<{ id: string; name: string; species: string }>
+}
+
+const emptyForm = {
+  customerType: 'registered' as CustomerType,
+  userId: '',
+  petId: '',
+  guestName: '',
+  guestPhone: '',
+  guestEmail: '',
+  guestPetName: '',
+  guestPetSpecies: '',
+  serviceId: '',
+  appointmentDate: '',
+  staffId: '',
+  notes: '',
+  isArchived: false,
+}
 
 const Appointments = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([])
@@ -37,6 +68,33 @@ const Appointments = () => {
   const [cancelReason, setCancelReason] = useState('')
   const [assignedStaffId, setAssignedStaffId] = useState('')
   const [staffList, setStaffList] = useState<any[]>([])
+
+  // ===== Tạo lịch hẹn (admin/nhân viên) =====
+  const currentRole = authService.getUserRole() // 'admin' | 'staff' | 'user'
+  const currentUser = authService.getCachedUser()
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [form, setForm] = useState({ ...emptyForm })
+  const [services, setServices] = useState<Service[]>([])
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [customerResults, setCustomerResults] = useState<CustomerResult[]>([])
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerResult | null>(null)
+
+  const setField = (key: keyof typeof emptyForm, value: any) =>
+    setForm((prev) => ({ ...prev, [key]: value }))
+
+  // Lấy danh sách dịch vụ cho dropdown
+  const fetchServices = async () => {
+    try {
+      const res = await adminService.getServices({ limit: 100 })
+      let list: Service[] = []
+      if (res && 'data' in res && Array.isArray(res.data)) list = res.data as Service[]
+      else if (Array.isArray(res)) list = res as Service[]
+      setServices(list)
+    } catch (error) {
+      console.error('Failed to fetch services:', error)
+    }
+  }
 
   const fetchAppointments = async (page = 1, search = '', status = 'all', date = '') => {
     try {
@@ -82,17 +140,11 @@ const Appointments = () => {
     }
   }
 
-  // Fetch staff list for assignment
+  // Fetch staff list for assignment (nhân viên + admin)
   const fetchStaffList = async () => {
     try {
-      const response = await adminService.getUsers({ role: 'admin', limit: 100 })
-      let users: any[] = []
-      if (response && 'data' in response && Array.isArray(response.data)) {
-        users = response.data
-      } else if (Array.isArray(response)) {
-        users = response
-      }
-      setStaffList(users)
+      const members = await adminService.getStaffMembers()
+      setStaffList(Array.isArray(members) ? members : [])
     } catch (error) {
       console.error('Failed to fetch staff list:', error)
     }
@@ -109,8 +161,32 @@ const Appointments = () => {
 
   useEffect(() => {
     fetchAppointments(1, '', statusFilter, dateFilter)
-    fetchStaffList()
   }, [statusFilter, dateFilter])
+
+  // Tải dữ liệu phụ trợ 1 lần
+  useEffect(() => {
+    fetchStaffList()
+    fetchServices()
+  }, [])
+
+  // Tìm kiếm khách hàng đã có tài khoản (debounce 400ms)
+  useEffect(() => {
+    if (form.customerType !== 'registered') return
+    const timer = setTimeout(async () => {
+      if (!customerSearch.trim()) {
+        setCustomerResults([])
+        return
+      }
+      try {
+        const results = await adminService.searchCustomers(customerSearch.trim())
+        setCustomerResults(Array.isArray(results) ? results : [])
+      } catch (error) {
+        console.error('Failed to search customers:', error)
+        setCustomerResults([])
+      }
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [customerSearch, form.customerType])
 
   useEffect(() => {
     fetchAppointments(1, searchQuery, statusFilter, dateFilter)
@@ -130,6 +206,105 @@ const Appointments = () => {
 
   const handleDateChange = (date: string) => {
     setDateFilter(date)
+  }
+
+  // ===== Tạo lịch hẹn =====
+  const openCreateModal = () => {
+    setForm({
+      ...emptyForm,
+      // Nhân viên tự gán cho chính mình
+      staffId: currentRole === 'staff' ? currentUser?.id || '' : '',
+    })
+    setSelectedCustomer(null)
+    setCustomerSearch('')
+    setCustomerResults([])
+    setShowCreateModal(true)
+  }
+
+  const handleSelectCustomer = (c: CustomerResult) => {
+    setSelectedCustomer(c)
+    setField('userId', c.id)
+    setField('petId', '')
+    setCustomerResults([])
+    setCustomerSearch(c.name)
+  }
+
+  const handleSelectService = (serviceId: string) => {
+    setField('serviceId', serviceId)
+  }
+
+  const handleCreateSubmit = async () => {
+    // Kiểm tra dữ liệu cơ bản
+    if (!form.serviceId) {
+      toast.error('Vui lòng chọn dịch vụ')
+      return
+    }
+    if (!form.appointmentDate) {
+      toast.error('Vui lòng chọn ngày giờ hẹn')
+      return
+    }
+    if (form.customerType === 'registered' && !form.userId) {
+      toast.error('Vui lòng chọn khách hàng đã có tài khoản')
+      return
+    }
+    if (form.customerType === 'guest') {
+      if (!form.guestName.trim()) {
+        toast.error('Vui lòng nhập tên khách hàng')
+        return
+      }
+      if (!form.guestPhone.trim()) {
+        toast.error('Vui lòng nhập số điện thoại khách hàng')
+        return
+      }
+    }
+    if (currentRole === 'admin' && !form.staffId) {
+      toast.error('Vui lòng chọn nhân viên phụ trách')
+      return
+    }
+
+    const selectedService = services.find((s) => s.id === form.serviceId)
+    const payload: any = {
+      customerType: form.customerType,
+      serviceId: form.serviceId,
+      appointmentDate: new Date(form.appointmentDate).toISOString(),
+      notes: form.notes || undefined,
+      isArchived: form.isArchived,
+    }
+    if (selectedService) {
+      payload.price = Number(selectedService.price) || undefined
+      payload.duration = (selectedService as any).duration || undefined
+    }
+    // Nhân viên luôn tự gán; admin chọn nhân viên
+    payload.staffId =
+      currentRole === 'staff' ? currentUser?.id : form.staffId || undefined
+
+    if (form.customerType === 'registered') {
+      payload.userId = form.userId
+      payload.petId = form.petId || undefined
+    } else {
+      payload.guestName = form.guestName
+      payload.guestPhone = form.guestPhone
+      payload.guestEmail = form.guestEmail || undefined
+      payload.guestPetName = form.guestPetName || undefined
+      payload.guestPetSpecies = form.guestPetSpecies || undefined
+    }
+
+    setCreating(true)
+    const toastId = toast.loading('Đang tạo lịch hẹn...')
+    try {
+      await adminService.createStaffAppointment(payload)
+      toast.success('Tạo lịch hẹn thành công!', { id: toastId })
+      setShowCreateModal(false)
+      fetchAppointments(1, searchQuery, statusFilter, dateFilter)
+    } catch (error: any) {
+      console.error('Failed to create appointment:', error)
+      const msg = Array.isArray(error?.response?.data?.message)
+        ? error.response.data.message.join(', ')
+        : error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi tạo lịch hẹn!'
+      toast.error(msg, { id: toastId })
+    } finally {
+      setCreating(false)
+    }
   }
 
   const handleDelete = (appointment: Appointment) => {
@@ -264,7 +439,8 @@ const Appointments = () => {
     }
   }
 
-  const formatDateTime = (dateString: string) => {
+  const formatDateTime = (dateString?: string) => {
+    if (!dateString) return { date: '-', time: '' }
     const date = new Date(dateString)
     return {
       date: date.toLocaleDateString('vi-VN'),
@@ -278,7 +454,15 @@ const Appointments = () => {
       label: 'Khách hàng & Thú cưng',
       render: (value: any, appointment: Appointment) => {
         if (!appointment) return ''
-        const customerName = appointment.user?.profile?.name || appointment.user?.email || 'Khách hàng'
+        const isGuest = appointment.customerType === 'guest' || (!appointment.user && !!appointment.guestName)
+        const customerName = isGuest
+          ? appointment.guestName || 'Khách vãng lai'
+          : appointment.user?.profile?.name || appointment.user?.email || 'Khách hàng'
+        const petInfo = isGuest
+          ? (appointment.guestPetName
+              ? `${appointment.guestPetName}${appointment.guestPetSpecies ? ' - ' + appointment.guestPetSpecies : ''}`
+              : 'Không có thông tin thú cưng')
+          : (appointment.pet ? `${appointment.pet.name} - ${appointment.pet.species}` : 'Chưa có thú cưng')
         return (
           <div className="flex items-center gap-3">
             <div className="flex -space-x-2">
@@ -286,12 +470,25 @@ const Appointments = () => {
               <Heart className="w-5 h-5 text-pink-500 bg-pink-100 rounded-full p-1" />
             </div>
             <div>
-              <div className="font-medium text-gray-900">
+              <div className="font-medium text-gray-900 flex items-center gap-2">
                 {customerName}
+                {isGuest && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700">
+                    Vãng lai
+                  </span>
+                )}
+                {appointment.isArchived && (
+                  <span title="Hồ sơ lưu trữ online">
+                    <Archive className="w-3.5 h-3.5 text-gray-400" />
+                  </span>
+                )}
               </div>
-              <div className="text-sm text-gray-500">
-                {appointment.pet ? `${appointment.pet.name} - ${appointment.pet.species}` : 'Chưa có thú cưng'}
-              </div>
+              {isGuest && appointment.guestPhone && (
+                <div className="text-xs text-gray-500 flex items-center gap-1">
+                  <Phone className="w-3 h-3" /> {appointment.guestPhone}
+                </div>
+              )}
+              <div className="text-sm text-gray-500">{petInfo}</div>
             </div>
           </div>
         )
@@ -302,7 +499,7 @@ const Appointments = () => {
       label: 'Dịch vụ & Ngày giờ',
       render: (value: any, appointment: Appointment) => {
         if (!appointment) return ''
-        const { date, time } = formatDateTime(appointment.appointmentDate)
+        const { date, time } = formatDateTime(appointment.appointmentDate || appointment.dateTime)
         return (
           <div className="space-y-1">
             <div className="font-medium text-gray-900">{appointment.service?.name}</div>
@@ -419,8 +616,16 @@ const Appointments = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Quản lý lịch hẹn</h1>
-            <p className="text-gray-600">Quản lý tất cả lịch hẹn của khách hàng</p>
+            <p className="text-gray-600">
+              {currentRole === 'staff'
+                ? 'Quản lý lịch hẹn được phân công cho bạn'
+                : 'Quản lý tất cả lịch hẹn của khách hàng'}
+            </p>
           </div>
+          <Button onClick={openCreateModal}>
+            <Plus className="w-5 h-5 mr-2" />
+            Tạo lịch hẹn
+          </Button>
         </div>
       </Card>
 
@@ -506,6 +711,210 @@ const Appointments = () => {
         )}
       </Card>
 
+      {/* Create Appointment Modal */}
+      <Modal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Tạo lịch hẹn mới"
+        size="lg"
+      >
+        <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+          {/* Loại khách hàng */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Loại khách hàng</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => { setField('customerType', 'registered'); setSelectedCustomer(null) }}
+                className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition ${
+                  form.customerType === 'registered'
+                    ? 'border-[#2E86AB] bg-[#2E86AB]/10 text-[#2E86AB]'
+                    : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <UserCheck className="w-4 h-4" /> Khách đã có tài khoản
+              </button>
+              <button
+                type="button"
+                onClick={() => setField('customerType', 'guest')}
+                className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition ${
+                  form.customerType === 'guest'
+                    ? 'border-[#F18F01] bg-[#F18F01]/10 text-[#F18F01]'
+                    : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <UserPlus className="w-4 h-4" /> Khách vãng lai
+              </button>
+            </div>
+          </div>
+
+          {/* Khách đã có tài khoản */}
+          {form.customerType === 'registered' && (
+            <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tìm khách hàng (tên / email / số điện thoại) *
+                </label>
+                <Input
+                  placeholder="Nhập để tìm khách hàng..."
+                  value={customerSearch}
+                  onChange={(e) => { setCustomerSearch(e.target.value); setSelectedCustomer(null); setField('userId', '') }}
+                />
+                {customerResults.length > 0 && !selectedCustomer && (
+                  <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                    {customerResults.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => handleSelectCustomer(c)}
+                        className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b last:border-b-0"
+                      >
+                        <div className="font-medium text-gray-900">{c.name}</div>
+                        <div className="text-xs text-gray-500">{c.email}{c.phone ? ` · ${c.phone}` : ''}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {selectedCustomer && (
+                <div className="p-2 bg-blue-50 rounded-lg text-sm">
+                  <div className="font-medium text-blue-800">{selectedCustomer.name}</div>
+                  <div className="text-blue-600 text-xs">{selectedCustomer.email}{selectedCustomer.phone ? ` · ${selectedCustomer.phone}` : ''}</div>
+                </div>
+              )}
+
+              {selectedCustomer && selectedCustomer.pets.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Thú cưng (tùy chọn)</label>
+                  <select
+                    value={form.petId}
+                    onChange={(e) => setField('petId', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E86AB]/20 focus:border-[#2E86AB]"
+                  >
+                    <option value="">-- Chọn thú cưng --</option>
+                    {selectedCustomer.pets.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name} - {p.species}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Khách vãng lai */}
+          {form.customerType === 'guest' && (
+            <div className="space-y-3 p-3 bg-orange-50 rounded-lg">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tên khách hàng *</label>
+                  <Input value={form.guestName} onChange={(e) => setField('guestName', e.target.value)} placeholder="Nguyễn Văn A" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Số điện thoại *</label>
+                  <Input value={form.guestPhone} onChange={(e) => setField('guestPhone', e.target.value)} placeholder="0901234567" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email (tùy chọn)</label>
+                <Input value={form.guestEmail} onChange={(e) => setField('guestEmail', e.target.value)} placeholder="email@example.com" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tên thú cưng (tùy chọn)</label>
+                  <Input value={form.guestPetName} onChange={(e) => setField('guestPetName', e.target.value)} placeholder="Milo" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Loài (tùy chọn)</label>
+                  <Input value={form.guestPetSpecies} onChange={(e) => setField('guestPetSpecies', e.target.value)} placeholder="Chó / Mèo..." />
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={form.isArchived}
+                  onChange={(e) => setField('isArchived', e.target.checked)}
+                  className="w-4 h-4 accent-[#2E86AB]"
+                />
+                Lưu làm hồ sơ lưu trữ online (khách không hẹn quay lại)
+              </label>
+              <p className="text-xs text-orange-700">
+                Thông tin (số điện thoại) sẽ được dùng để tự động kết nối lịch hẹn và lịch sử khám khi khách đăng ký tài khoản.
+              </p>
+            </div>
+          )}
+
+          {/* Dịch vụ */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Dịch vụ *</label>
+            <select
+              value={form.serviceId}
+              onChange={(e) => handleSelectService(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E86AB]/20 focus:border-[#2E86AB]"
+            >
+              <option value="">-- Chọn dịch vụ --</option>
+              {services.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} {s.price ? `- ${Number(s.price).toLocaleString('vi-VN')}đ` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Ngày giờ */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ngày giờ hẹn *</label>
+            <input
+              type="datetime-local"
+              value={form.appointmentDate}
+              onChange={(e) => setField('appointmentDate', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E86AB]/20 focus:border-[#2E86AB]"
+            />
+          </div>
+
+          {/* Nhân viên phụ trách */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nhân viên phụ trách {currentRole === 'admin' ? '*' : ''}</label>
+            {currentRole === 'staff' ? (
+              <div className="px-3 py-2 bg-gray-100 rounded-lg text-sm text-gray-700">
+                {currentUser?.profile?.name || currentUser?.email || 'Bạn'} (tự phụ trách)
+              </div>
+            ) : (
+              <select
+                value={form.staffId}
+                onChange={(e) => setField('staffId', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E86AB]/20 focus:border-[#2E86AB]"
+              >
+                <option value="">-- Chọn nhân viên --</option>
+                {staffList.map((staff) => (
+                  <option key={staff.id} value={staff.id}>
+                    {staff.name || staff.email} {staff.role === 'admin' ? '(Quản trị)' : ''}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Ghi chú */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú (tùy chọn)</label>
+            <textarea
+              value={form.notes}
+              onChange={(e) => setField('notes', e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E86AB]/20 focus:border-[#2E86AB]"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={() => setShowCreateModal(false)} disabled={creating}>Hủy</Button>
+            <Button onClick={handleCreateSubmit} disabled={creating}>
+              {creating ? 'Đang tạo...' : 'Tạo lịch hẹn'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Assign Staff Modal */}
       <Modal
         isOpen={showAssignModal}
@@ -534,7 +943,7 @@ const Appointments = () => {
               <option value="">-- Chọn nhân viên --</option>
               {staffList.map((staff) => (
                 <option key={staff.id} value={staff.id}>
-                  {staff.profile?.name || staff.email}
+                  {staff.name || staff.profile?.name || staff.email}
                 </option>
               ))}
             </select>

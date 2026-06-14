@@ -147,14 +147,26 @@ export interface Category {
 // Appointment Types
 export interface Appointment {
   id: string
-  userId: string
+  userId?: string
   serviceId: string
-  petId: string
+  petId?: string
   staffId?: string
   dateTime: string
-  status: 'pending' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled'
+  appointmentDate?: string
+  duration?: number
+  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'
   notes?: string
+  specialRequests?: string
   price: number
+  // Phân loại khách hàng & thông tin khách vãng lai
+  customerType?: 'registered' | 'guest'
+  guestName?: string
+  guestPhone?: string
+  guestEmail?: string
+  guestPetName?: string
+  guestPetSpecies?: string
+  createdBy?: string
+  isArchived?: boolean
   user?: User
   service?: Service
   pet?: Pet
