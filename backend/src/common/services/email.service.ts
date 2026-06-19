@@ -2,36 +2,57 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
+// Provider gửi email: 'resend' (ưu tiên) hoặc 'smtp' (dự phòng)
+type EmailProvider = 'resend' | 'smtp' | 'none';
+
 @Injectable()
 export class EmailService {
   private transporter: nodemailer.Transporter | null = null;
-  private isConfigured: boolean = false;
+  private provider: EmailProvider = 'none';
+  private resendApiKey: string;
+  private fromAddress: string;
+  private fromName: string;
 
   constructor(private configService: ConfigService) {
     this.initializeTransporter();
   }
 
   private initializeTransporter() {
+    // Thông tin người gửi (dùng chung cho mọi provider)
+    this.fromName =
+      this.configService.get('MAIL_FROM_NAME') ||
+      this.configService.get('SMTP_FROM_NAME') ||
+      'PetCare Hub';
+    this.fromAddress =
+      this.configService.get('MAIL_FROM_ADDRESS') ||
+      this.configService.get('SMTP_FROM_EMAIL') ||
+      this.configService.get('SMTP_USERNAME');
+
+    // Ưu tiên Resend nếu có API key
+    this.resendApiKey = this.configService.get('RESEND_API_KEY');
+    if (this.resendApiKey) {
+      this.provider = 'resend';
+      console.log('Email service configured with Resend');
+      return;
+    }
+
+    // Dự phòng: SMTP (Nodemailer)
     const smtpHost = this.configService.get('SMTP_HOST');
-    const smtpPort = this.configService.get('SMTP_PORT');
     const smtpUser = this.configService.get('SMTP_USERNAME');
     const smtpPass = this.configService.get('SMTP_PASSWORD');
-
     if (smtpHost && smtpUser && smtpPass) {
       this.transporter = nodemailer.createTransport({
         host: smtpHost,
-        port: parseInt(smtpPort) || 587,
-        secure: false, // true for 465, false for other ports
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
+        port: parseInt(this.configService.get('SMTP_PORT')) || 587,
+        secure: false,
+        auth: { user: smtpUser, pass: smtpPass },
       });
-      this.isConfigured = true;
+      this.provider = 'smtp';
       console.log('Email service configured with SMTP');
-    } else {
-      console.warn('SMTP configuration not provided. Email functionality will be disabled.');
+      return;
     }
+
+    console.warn('Chưa cấu hình email (RESEND_API_KEY hoặc SMTP). Chức năng gửi email sẽ bị tắt.');
   }
 
   async sendEmail(
@@ -40,27 +61,63 @@ export class EmailService {
     text: string,
     html?: string,
   ): Promise<void> {
-    if (!this.isConfigured || !this.transporter) {
+    if (this.provider === 'none') {
       console.warn('Email service not configured. Skipping email send.');
       return;
     }
 
+    if (this.provider === 'resend') {
+      await this.sendViaResend(to, subject, text, html);
+      return;
+    }
+
+    // SMTP (dự phòng)
     const mailOptions = {
-      from: {
-        name: this.configService.get('SMTP_FROM_NAME') || 'PetCare Hub',
-        address: this.configService.get('SMTP_FROM_EMAIL') || this.configService.get('SMTP_USERNAME'),
-      },
+      from: { name: this.fromName, address: this.fromAddress },
       to,
       subject,
       text,
       html,
     };
-
     try {
-      await this.transporter.sendMail(mailOptions);
+      await this.transporter!.sendMail(mailOptions);
       console.log('Email sent successfully to:', to);
     } catch (error) {
       console.error('Email sending failed:', error);
+      throw error;
+    }
+  }
+
+  // Gửi email qua Resend HTTP API (https://resend.com)
+  private async sendViaResend(
+    to: string,
+    subject: string,
+    text: string,
+    html?: string,
+  ): Promise<void> {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.resendApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: `${this.fromName} <${this.fromAddress}>`,
+          to: [to],
+          subject,
+          html: html || undefined,
+          text: text || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        throw new Error(`Resend API lỗi ${res.status}: ${detail}`);
+      }
+      console.log('Email sent successfully (Resend) to:', to);
+    } catch (error) {
+      console.error('Email sending failed (Resend):', error);
       throw error;
     }
   }
