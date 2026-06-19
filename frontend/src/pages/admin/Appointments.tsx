@@ -268,7 +268,8 @@ const Appointments = () => {
       serviceId: form.serviceId,
       appointmentDate: new Date(form.appointmentDate).toISOString(),
       notes: form.notes || undefined,
-      isArchived: form.isArchived,
+      // Khách vãng lai mặc định luôn được lưu làm hồ sơ lưu trữ online
+      isArchived: form.customerType === 'guest',
     }
     if (selectedService) {
       payload.price = Number(selectedService.price) || undefined
@@ -829,17 +830,9 @@ const Appointments = () => {
                   <Input value={form.guestPetSpecies} onChange={(e) => setField('guestPetSpecies', e.target.value)} placeholder="Chó / Mèo..." />
                 </div>
               </div>
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={form.isArchived}
-                  onChange={(e) => setField('isArchived', e.target.checked)}
-                  className="w-4 h-4 accent-[#2E86AB]"
-                />
-                Lưu làm hồ sơ lưu trữ online (khách không hẹn quay lại)
-              </label>
               <p className="text-xs text-orange-700">
-                Thông tin (số điện thoại) sẽ được dùng để tự động kết nối lịch hẹn và lịch sử khám khi khách đăng ký tài khoản.
+                Thông tin khách vãng lai được tự động lưu làm hồ sơ lưu trữ online. Số điện thoại
+                sẽ được dùng để tự động kết nối lịch hẹn và lịch sử khám khi khách đăng ký tài khoản.
               </p>
             </div>
           )}
