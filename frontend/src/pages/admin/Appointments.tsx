@@ -830,10 +830,6 @@ const Appointments = () => {
                   <Input value={form.guestPetSpecies} onChange={(e) => setField('guestPetSpecies', e.target.value)} placeholder="Chó / Mèo..." />
                 </div>
               </div>
-              <p className="text-xs text-orange-700">
-                Thông tin khách vãng lai được tự động lưu làm hồ sơ lưu trữ online. Số điện thoại
-                sẽ được dùng để tự động kết nối lịch hẹn và lịch sử khám khi khách đăng ký tài khoản.
-              </p>
             </div>
           )}
 
