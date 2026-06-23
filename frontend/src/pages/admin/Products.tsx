@@ -170,13 +170,11 @@ const Products = () => {
   const confirmDelete = async () => {
     if (!selectedProduct) return
     
-    const toastId = toast.loading('Đang xóa sản phẩm...')
-    
+    const toastId = toast.loading('Đang ẩn sản phẩm...')
+
     try {
       await adminService.deleteProduct(selectedProduct.id)
-      toast.success('Xóa sản phẩm thành công!', { id: toastId })
-      setShowDeleteModal(false)
-      setSelectedProduct(null)
+      toast.success('Đã ẩn sản phẩm khỏi cửa hàng!', { id: toastId })
       fetchProducts(pagination.page, searchQuery, categoryFilter, statusFilter, minPrice, maxPrice, minStock, maxStock)
     } catch (error: any) {
       console.error('Failed to delete product:', error)
@@ -184,9 +182,13 @@ const Products = () => {
       // Extract error message from API response
       const errorMessage = error?.response?.data?.message ||
                           error?.message ||
-                          'Có lỗi xảy ra khi xóa sản phẩm!'
+                          'Có lỗi xảy ra khi ẩn sản phẩm!'
 
       toast.error(errorMessage, { id: toastId })
+    } finally {
+      // Luôn đóng popup xác nhận sau khi có thông báo (thành công hay lỗi)
+      setShowDeleteModal(false)
+      setSelectedProduct(null)
     }
   }
 
@@ -563,14 +565,14 @@ const Products = () => {
       <Modal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
-        title="Xác nhận xóa"
+        title="Xác nhận ẩn sản phẩm"
       >
         <div className="space-y-4">
           <p className="text-gray-600">
-            Bạn có chắc chắn muốn xóa sản phẩm "{selectedProduct?.name}"?
+            Bạn có chắc chắn muốn ẩn sản phẩm "{selectedProduct?.name}"?
           </p>
-          <p className="text-sm text-red-600">
-            Hành động này không thể hoàn tác.
+          <p className="text-sm text-gray-500">
+            Sản phẩm sẽ được chuyển sang trạng thái ngừng bán và không hiển thị ngoài cửa hàng. Bạn có thể bật lại bất cứ lúc nào.
           </p>
           <div className="flex justify-end gap-3">
             <Button
