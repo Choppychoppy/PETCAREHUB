@@ -18,7 +18,8 @@ import {
   Plus,
   Phone,
   UserPlus,
-  Archive
+  Archive,
+  Pencil
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -36,6 +37,8 @@ const emptyForm = {
   customerType: 'registered' as CustomerType,
   userId: '',
   petId: '',
+  newPetName: '',
+  newPetSpecies: '',
   guestName: '',
   guestPhone: '',
   guestEmail: '',
@@ -79,6 +82,11 @@ const Appointments = () => {
   const [customerSearch, setCustomerSearch] = useState('')
   const [customerResults, setCustomerResults] = useState<CustomerResult[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerResult | null>(null)
+
+  // ===== Sửa lịch hẹn =====
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editForm, setEditForm] = useState({ serviceId: '', staffId: '', appointmentDate: '', status: '' })
 
   const setField = (key: keyof typeof emptyForm, value: any) =>
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -282,6 +290,11 @@ const Appointments = () => {
     if (form.customerType === 'registered') {
       payload.userId = form.userId
       payload.petId = form.petId || undefined
+      // Thêm thú cưng mới ngay trong luồng đặt lịch (nếu có nhập)
+      if (form.newPetName.trim()) {
+        payload.newPetName = form.newPetName.trim()
+        payload.newPetSpecies = form.newPetSpecies.trim() || undefined
+      }
     } else {
       payload.guestName = form.guestName
       payload.guestPhone = form.guestPhone
@@ -323,6 +336,62 @@ const Appointments = () => {
     setSelectedAppointment(appointment)
     setCancelReason('')
     setShowCancelModal(true)
+  }
+
+  // Chuyển giá trị ngày giờ sang định dạng cho input datetime-local (yyyy-MM-ddTHH:mm)
+  const toLocalInput = (value?: string) => {
+    if (!value) return ''
+    const d = new Date(value)
+    if (isNaN(d.getTime())) return ''
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+
+  const handleEdit = (appointment: Appointment) => {
+    setSelectedAppointment(appointment)
+    setEditForm({
+      serviceId: (appointment as any).serviceId || (appointment as any).service?.id || '',
+      staffId: (appointment as any).staffId || (appointment as any).staff?.id || '',
+      appointmentDate: toLocalInput((appointment as any).dateTime || (appointment as any).appointmentDate),
+      status: appointment.status || '',
+    })
+    setShowEditModal(true)
+  }
+
+  const handleEditSubmit = async () => {
+    if (!selectedAppointment) return
+    if (!editForm.serviceId) { toast.error('Vui lòng chọn dịch vụ'); return }
+    if (!editForm.appointmentDate) { toast.error('Vui lòng chọn ngày giờ hẹn'); return }
+    if (currentRole === 'admin' && !editForm.staffId) { toast.error('Vui lòng chọn nhân viên phụ trách'); return }
+
+    const selectedService = services.find((s) => s.id === editForm.serviceId)
+    const payload: any = {
+      serviceId: editForm.serviceId,
+      staffId: editForm.staffId || undefined,
+      appointmentDate: new Date(editForm.appointmentDate).toISOString(),
+      status: editForm.status || undefined,
+    }
+    if (selectedService) {
+      payload.duration = (selectedService as any).duration || undefined
+      payload.price = Number(selectedService.price) || undefined
+    }
+
+    setSavingEdit(true)
+    const toastId = toast.loading('Đang cập nhật lịch hẹn...')
+    try {
+      await adminService.updateAppointment(selectedAppointment.id, payload)
+      toast.success('Cập nhật lịch hẹn thành công!', { id: toastId })
+      setShowEditModal(false)
+      setSelectedAppointment(null)
+      fetchAppointments(pagination.page, searchQuery, statusFilter, dateFilter)
+    } catch (error: any) {
+      const msg = Array.isArray(error?.response?.data?.message)
+        ? error.response.data.message.join(', ')
+        : error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi cập nhật lịch hẹn!'
+      toast.error(msg, { id: toastId })
+    } finally {
+      setSavingEdit(false)
+    }
   }
 
   const handleConfirmAppointment = async (appointment: Appointment) => {
@@ -583,14 +652,24 @@ const Appointments = () => {
               </>
             )}
             {appointment.status !== 'cancelled' && appointment.status !== 'completed' && appointment.status !== 'no_show' && (
-              <Button
-                variant="warning"
-                size="sm"
-                onClick={() => handleCancelAppointment(appointment)}
-                title="Hủy lịch hẹn"
-              >
-                <X className="w-4 h-4" />
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEdit(appointment)}
+                  title="Sửa lịch hẹn"
+                >
+                  <Pencil className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="warning"
+                  size="sm"
+                  onClick={() => handleCancelAppointment(appointment)}
+                  title="Hủy lịch hẹn"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </>
             )}
             <Button
               variant="danger"
@@ -800,6 +879,28 @@ const Appointments = () => {
                   </select>
                 </div>
               )}
+
+              {/* Thêm thú cưng mới ngay trong luồng đặt lịch */}
+              {selectedCustomer && (
+                <div className="pt-2 border-t border-gray-200">
+                  <div className="flex items-center gap-1 text-sm font-medium text-[#2E86AB] mb-2">
+                    <UserPlus className="w-4 h-4" /> Hoặc thêm thú cưng mới
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Input
+                      placeholder="Tên thú cưng mới"
+                      value={form.newPetName}
+                      onChange={(e) => { setField('newPetName', e.target.value); if (e.target.value) setField('petId', '') }}
+                    />
+                    <Input
+                      placeholder="Loài (Chó / Mèo...)"
+                      value={form.newPetSpecies}
+                      onChange={(e) => setField('newPetSpecies', e.target.value)}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Nếu nhập tên thú cưng mới, hệ thống sẽ tự thêm vào hồ sơ khách hàng.</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -900,6 +1001,80 @@ const Appointments = () => {
             <Button onClick={handleCreateSubmit} disabled={creating}>
               {creating ? 'Đang tạo...' : 'Tạo lịch hẹn'}
             </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Appointment Modal */}
+      <Modal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        title="Sửa lịch hẹn"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Dịch vụ *</label>
+            <select
+              value={editForm.serviceId}
+              onChange={(e) => setEditForm((p) => ({ ...p, serviceId: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E86AB]/20 focus:border-[#2E86AB]"
+            >
+              <option value="">-- Chọn dịch vụ --</option>
+              {services.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ngày giờ hẹn *</label>
+            <input
+              type="datetime-local"
+              value={editForm.appointmentDate}
+              onChange={(e) => setEditForm((p) => ({ ...p, appointmentDate: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E86AB]/20 focus:border-[#2E86AB]"
+            />
+          </div>
+
+          {currentRole === 'admin' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nhân viên phụ trách *</label>
+              <select
+                value={editForm.staffId}
+                onChange={(e) => setEditForm((p) => ({ ...p, staffId: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E86AB]/20 focus:border-[#2E86AB]"
+              >
+                <option value="">-- Chọn nhân viên --</option>
+                {staffList.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}{s.role === 'admin' ? ' (Admin)' : ''}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
+            <select
+              value={editForm.status}
+              onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E86AB]/20 focus:border-[#2E86AB]"
+            >
+              <option value="pending">Chờ xác nhận</option>
+              <option value="confirmed">Đã xác nhận</option>
+              <option value="in_progress">Đang thực hiện</option>
+              <option value="completed">Hoàn thành</option>
+              <option value="cancelled">Đã hủy</option>
+              <option value="no_show">Vắng mặt</option>
+            </select>
+          </div>
+
+          <p className="text-xs text-gray-500">
+            Hệ thống sẽ kiểm tra dịch vụ và khung giờ của nhân viên để tránh trùng lịch.
+          </p>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={() => setShowEditModal(false)}>Hủy</Button>
+            <Button onClick={handleEditSubmit} loading={savingEdit}>Cập nhật</Button>
           </div>
         </div>
       </Modal>

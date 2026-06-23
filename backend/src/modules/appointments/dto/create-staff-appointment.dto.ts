@@ -29,6 +29,15 @@ export class CreateStaffAppointmentDto {
   @IsUUID()
   petId?: string;
 
+  // Thêm thú cưng mới cho khách đã có tài khoản ngay trong luồng đặt lịch
+  @IsOptional()
+  @IsString()
+  newPetName?: string;
+
+  @IsOptional()
+  @IsString()
+  newPetSpecies?: string;
+
   // ===== Khách vãng lai (chưa có tài khoản) =====
   @ValidateIf((o) => o.customerType === 'guest')
   @IsString()

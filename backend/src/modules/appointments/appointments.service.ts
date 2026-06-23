@@ -9,6 +9,7 @@ import { Repository, Between, Like, IsNull, Brackets } from 'typeorm';
 import { Appointment } from './entities/appointment.entity';
 import { User } from '../users/entities/user.entity';
 import { Service } from '../services/entities/service.entity';
+import { Pet } from '../pets/entities/pet.entity';
 import { AppointmentStatus } from '../../common/enums/appointment-status.enum';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { CreateStaffAppointmentDto } from './dto/create-staff-appointment.dto';
@@ -22,7 +23,50 @@ export class AppointmentsService {
     private userRepository: Repository<User>,
     @InjectRepository(Service)
     private serviceRepository: Repository<Service>,
+    @InjectRepository(Pet)
+    private petRepository: Repository<Pet>,
   ) {}
+
+  /**
+   * Kiểm tra nhân viên có bị trùng khung giờ với lịch hẹn khác không.
+   * Hai lịch coi là trùng nếu khoảng [bắt đầu, kết thúc) của chúng giao nhau.
+   * Bỏ qua các lịch đã huỷ / hoàn thành / vắng mặt và lịch đang sửa (excludeId).
+   */
+  private async assertNoStaffConflict(
+    staffId: string | null | undefined,
+    start: Date,
+    durationMinutes: number,
+    excludeId?: string,
+  ): Promise<void> {
+    if (!staffId) return;
+    const startMs = start.getTime();
+    const endMs = startMs + (durationMinutes || 30) * 60000;
+
+    const qb = this.appointmentRepository
+      .createQueryBuilder('a')
+      .where('a.staffId = :staffId', { staffId })
+      .andWhere('a.status NOT IN (:...ignored)', {
+        ignored: [
+          AppointmentStatus.CANCELLED,
+          AppointmentStatus.COMPLETED,
+          AppointmentStatus.NO_SHOW,
+        ],
+      });
+    if (excludeId) qb.andWhere('a.id != :excludeId', { excludeId });
+
+    const existing = await qb.getMany();
+    const conflict = existing.some((a) => {
+      const s = new Date(a.dateTime || a.appointmentDate).getTime();
+      const e = s + (a.duration || 30) * 60000;
+      return startMs < e && endMs > s; // hai khoảng thời gian giao nhau
+    });
+
+    if (conflict) {
+      throw new BadRequestException(
+        'Nhân viên đã có lịch hẹn trùng khung giờ này. Vui lòng chọn khung giờ khác hoặc nhân viên khác.',
+      );
+    }
+  }
 
   async create(userId: string, createAppointmentDto: any) {
     const appointment = this.appointmentRepository.create({
@@ -102,6 +146,18 @@ export class AppointmentsService {
       base.customerType = 'registered';
       base.userId = dto.userId;
       base.petId = dto.petId || undefined;
+
+      // Thêm thú cưng mới cho khách ngay trong luồng đặt lịch (nếu có)
+      if (dto.newPetName && dto.newPetName.trim()) {
+        const newPet = this.petRepository.create({
+          name: dto.newPetName.trim(),
+          species: (dto.newPetSpecies && dto.newPetSpecies.trim()) || 'Khác',
+          owner: { id: dto.userId } as any,
+          isActive: true,
+        });
+        const savedPet = await this.petRepository.save(newPet);
+        base.petId = savedPet.id;
+      }
     } else {
       // Khách vãng lai: lưu thông tin liên hệ để làm hồ sơ và kết nối sau này
       base.customerType = 'guest';
@@ -112,6 +168,13 @@ export class AppointmentsService {
       base.guestPetName = dto.guestPetName;
       base.guestPetSpecies = dto.guestPetSpecies;
     }
+
+    // Kiểm tra trùng khung giờ của nhân viên phụ trách trước khi lưu
+    await this.assertNoStaffConflict(
+      staffId,
+      appointmentDate,
+      base.duration ?? 30,
+    );
 
     const appointment = this.appointmentRepository.create(base);
     const saved = await this.appointmentRepository.save(appointment);
@@ -295,7 +358,46 @@ export class AppointmentsService {
 
   async update(id: string, updateAppointmentDto: any) {
     const appointment = await this.findOne(id);
-    await this.appointmentRepository.update(id, updateAppointmentDto);
+
+    const patch: any = { ...updateAppointmentDto };
+    // Đồng bộ ngày giờ vào cả 2 cột dateTime và appointmentDate
+    if (updateAppointmentDto.appointmentDate) {
+      const d = new Date(updateAppointmentDto.appointmentDate);
+      patch.appointmentDate = d;
+      patch.dateTime = d;
+    }
+
+    // Kiểm tra trùng khung giờ của nhân viên (trừ khi lịch bị huỷ/hoàn thành/vắng)
+    const effStatus = updateAppointmentDto.status ?? appointment.status;
+    const skip = [
+      AppointmentStatus.CANCELLED,
+      AppointmentStatus.COMPLETED,
+      AppointmentStatus.NO_SHOW,
+    ].includes(effStatus);
+
+    const effStaffId =
+      updateAppointmentDto.staffId !== undefined
+        ? updateAppointmentDto.staffId
+        : appointment.staffId;
+    const effStart = patch.appointmentDate
+      ? patch.appointmentDate
+      : new Date(appointment.dateTime || appointment.appointmentDate);
+    const effDuration =
+      updateAppointmentDto.duration ?? appointment.duration ?? 30;
+
+    // Chỉ kiểm tra trùng khi thực sự ĐỔI nhân viên hoặc ĐỔI khung giờ,
+    // tránh chặn nhầm khi chỉ sửa trạng thái/ghi chú của lịch hiện có.
+    const oldStart = new Date(
+      appointment.dateTime || appointment.appointmentDate,
+    ).getTime();
+    const staffChanged = effStaffId !== appointment.staffId;
+    const timeChanged = effStart.getTime() !== oldStart;
+
+    if (!skip && (staffChanged || timeChanged)) {
+      await this.assertNoStaffConflict(effStaffId, effStart, effDuration, id);
+    }
+
+    await this.appointmentRepository.update(id, patch);
     return this.findOne(id);
   }
 
