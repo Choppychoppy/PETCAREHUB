@@ -54,7 +54,7 @@ const Home = () => {
       setServicesLoading(true);
       const response = await publicService.getServices();
       const servicesData = response.data || response || [];
-      setServices(servicesData.slice(0, 6)); // Lấy 6 dịch vụ đầu
+      setServices(servicesData.slice(0, 4)); // Lấy 4 dịch vụ đầu
     } catch (error) {
       console.error("Failed to fetch services:", error);
       toast.error("Không thể tải danh sách dịch vụ");
@@ -66,7 +66,7 @@ const Home = () => {
   const fetchProducts = async () => {
     try {
       setProductsLoading(true);
-      const response = await publicService.getProducts({ limit: 6 }); //Lấy 6 sản phẩm
+      const response = await publicService.getProducts({ limit: 4 });
       const productsData =
         response.data?.data || response.data || response || [];
       setProducts(productsData);

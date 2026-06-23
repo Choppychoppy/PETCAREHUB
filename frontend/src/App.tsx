@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
 import Login from '@/pages/auth/Login'
 import Register from '@/pages/auth/Register'
 import VerifyOtp from '@/pages/auth/VerifyOtp'
@@ -46,6 +47,19 @@ import Blog from '@/pages/Blog'
 import BlogDetail from '@/pages/BlogDetail'
 import { authService } from '@/services'
 
+// Tự động cuộn lên đầu trang mỗi khi chuyển route.
+// Sửa lỗi: khi đang cuộn xuống danh sách sản phẩm/dịch vụ rồi bấm "Xem chi tiết"/"Đặt lịch",
+// trang chi tiết giữ nguyên vị trí cuộn cũ nên trông như bị "cuộn xuống cuối trang".
+function ScrollToTop() {
+  const { pathname } = useLocation()
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [pathname])
+
+  return null
+}
+
 // Protected Route wrapper
 function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: string | string[] }) {
   const isAuthenticated = authService.isAuthenticated()
@@ -90,6 +104,7 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <Router>
+      <ScrollToTop />
       <Routes>
         {/* Auth Routes - redirect to home if already logged in */}
         <Route path="/auth/login" element={<AuthRoute><Login /></AuthRoute>} />
