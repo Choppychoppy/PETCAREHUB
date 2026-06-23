@@ -346,74 +346,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
               {/* Right side */}
               <div className="flex items-center gap-3">
-                {/* Notifications */}
-                <div className="relative">
-                  <Button
-                    variant="icon"
-                    className="relative hover:bg-slate-100 rounded-lg p-2 transition-colors"
-                    onClick={() => setNotificationOpen(!notificationOpen)}
-                  >
-                    <Bell className="w-5 h-5 text-slate-600" />
-                    {notificationCount > 0 && (
-                      <div className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs min-w-[1.25rem] h-5 px-1 flex items-center justify-center rounded-full font-bold shadow-lg">
-                        {notificationCount > 99 ? '99+' : notificationCount}
-                      </div>
-                    )}
-                  </Button>
-
-                  {notificationOpen && (
-                    <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-xl border border-slate-200/60 py-2 backdrop-blur-md z-50">
-                      <div className="px-4 py-3 border-b border-slate-200/60 flex items-center justify-between">
-                        <h3 className="font-semibold text-slate-900">Thông báo</h3>
-                        {notificationCount > 0 && (
-                          <span className="text-xs font-medium text-slate-500">{notificationCount} mới</span>
-                        )}
-                      </div>
-                      <div className="max-h-80 overflow-y-auto">
-                        {notifications.length === 0 ? (
-                          <div className="px-4 py-8 text-center text-sm text-slate-400">
-                            Không có thông báo mới
-                          </div>
-                        ) : (
-                          notifications.map((noti) => {
-                            const iconConfig = {
-                              appointment: { Icon: Calendar, bg: 'bg-blue-100', color: 'text-blue-600' },
-                              order: { Icon: Package, bg: 'bg-green-100', color: 'text-green-600' },
-                              support: { Icon: MessageSquare, bg: 'bg-orange-100', color: 'text-orange-600' },
-                            }[noti.type]
-                            const NotiIcon = iconConfig.Icon
-                            return (
-                              <Link
-                                key={noti.id}
-                                to={noti.link}
-                                className="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors"
-                                onClick={() => setNotificationOpen(false)}
-                              >
-                                <div className={`w-8 h-8 rounded-full ${iconConfig.bg} flex items-center justify-center flex-shrink-0`}>
-                                  <NotiIcon className={`w-4 h-4 ${iconConfig.color}`} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-slate-900">{noti.title}</p>
-                                  <p className="text-xs text-slate-500 truncate">{noti.description}</p>
-                                  <p className="text-xs text-slate-400 mt-1">{formatRelativeTime(noti.createdAt)}</p>
-                                </div>
-                              </Link>
-                            )
-                          })
-                        )}
-                      </div>
-                      <div className="px-4 py-3 border-t border-slate-200/60">
-                        <Link
-                          to="/admin/dashboard"
-                          className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                          onClick={() => setNotificationOpen(false)}
-                        >
-                          Xem tất cả thông báo
-                        </Link>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                {/* Đã ẩn icon chuông thông báo theo yêu cầu */}
 
                 {/* Profile Dropdown */}
                 <div className="relative">
