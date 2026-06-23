@@ -27,6 +27,10 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
+// Ảnh thay thế khi ảnh sản phẩm bị lỗi/thiếu (tránh hiển thị ảnh vỡ)
+const PRODUCT_FALLBACK_IMG =
+  "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=300&fit=crop";
+
 const Home = () => {
   const { addToCart } = useCart();
   const [services, setServices] = useState([]);
@@ -54,7 +58,7 @@ const Home = () => {
       setServicesLoading(true);
       const response = await publicService.getServices();
       const servicesData = response.data || response || [];
-      setServices(servicesData.slice(0, 4)); // Lấy 4 dịch vụ đầu
+      setServices(servicesData.slice(0, 6)); // Lấy 6 dịch vụ đầu
     } catch (error) {
       console.error("Failed to fetch services:", error);
       toast.error("Không thể tải danh sách dịch vụ");
@@ -66,7 +70,7 @@ const Home = () => {
   const fetchProducts = async () => {
     try {
       setProductsLoading(true);
-      const response = await publicService.getProducts({ limit: 4 });
+      const response = await publicService.getProducts({ limit: 6 });
       const productsData =
         response.data?.data || response.data || response || [];
       setProducts(productsData);
@@ -449,9 +453,11 @@ const Home = () => {
                             )}
                           </div>
                           <div>
-                            <h3 className="text-lg font-bold text-gray-900 line-clamp-1">
-                              {service.name || service.title}
-                            </h3>
+                            <Link to={`/services/${service.id || index}`}>
+                              <h3 className="text-lg font-bold text-gray-900 line-clamp-1 hover:text-emerald-600 transition-colors">
+                                {service.name || service.title}
+                              </h3>
+                            </Link>
                             <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
                               Dịch vụ chăm sóc
                             </span>
@@ -607,22 +613,24 @@ const Home = () => {
                     className="group hover:shadow-xl transition-all duration-300 border border-gray-100 overflow-hidden bg-white"
                   >
                     <div className="relative">
-                      {product.images && product.images.length > 0 ? (
-                        <img
-                          src={product.images[0].imageUrl}
-                          alt={product.name}
-                          className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                      ) : (
+                      <Link
+                        to={`/products/${product.id || index}`}
+                        className="block"
+                      >
                         <img
                           src={
+                            product.images?.[0]?.imageUrl ||
                             product.image ||
-                            "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=300&fit=crop"
+                            PRODUCT_FALLBACK_IMG
                           }
                           alt={product.name}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src =
+                              PRODUCT_FALLBACK_IMG;
+                          }}
                           className="w-full h-56 object-cover group-hover:scale-105 transition-transform duration-300"
                         />
-                      )}
+                      </Link>
                       <div className="absolute top-3 left-3 bg-emerald-500 text-white text-xs font-semibold px-3 py-1 rounded-full">
                         {product.category?.name ||
                           product.category ||
@@ -652,9 +660,11 @@ const Home = () => {
                     <div className="p-5">
                       {/* Product name and brand */}
                       <div className="mb-4">
-                        <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 leading-tight">
-                          {product.name}
-                        </h3>
+                        <Link to={`/products/${product.id || index}`}>
+                          <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 leading-tight hover:text-emerald-600 transition-colors">
+                            {product.name}
+                          </h3>
+                        </Link>
                         {product.brand && (
                           <span className="text-sm text-emerald-600 font-medium bg-emerald-50 px-2 py-1 rounded">
                             {product.brand}
