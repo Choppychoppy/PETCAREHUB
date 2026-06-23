@@ -221,6 +221,7 @@ const Blog = () => {
                           <img
                             src={typeof post.images[0] === 'string' ? post.images[0] : (post.images[0] as any)?.imageUrl}
                             alt={post.title}
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).src = 'https://images.unsplash.com/photo-1450778869180-41d0601e046e?w=600' }}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
                         ) : (

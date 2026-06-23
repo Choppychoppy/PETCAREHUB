@@ -21,6 +21,9 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
+// Ảnh thay thế khi ảnh sản phẩm bị lỗi/thiếu (tránh hiển thị ảnh vỡ)
+const PRODUCT_FALLBACK_IMG = 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=400&h=300&fit=crop'
+
 const Products = () => {
   const [searchParams] = useSearchParams()
   const { addToCart } = useCart()
@@ -357,18 +360,21 @@ const Products = () => {
                       <>
                         {/* Product Image */}
                         <div className="aspect-square bg-gradient-to-br from-gray-50 to-gray-100 relative overflow-hidden">
-                          {product.images && product.images.length > 0 ? (
-                            <img 
-                              src={product.images[0].imageUrl} 
-                              alt={product.name}
-                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Package className="w-16 h-16 text-gray-300" />
-                            </div>
-                          )}
-                          
+                          <Link to={`/products/${product.id}`} className="block w-full h-full">
+                            {product.images && product.images.length > 0 ? (
+                              <img
+                                src={product.images[0].imageUrl}
+                                alt={product.name}
+                                onError={(e) => { (e.currentTarget as HTMLImageElement).src = PRODUCT_FALLBACK_IMG }}
+                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Package className="w-16 h-16 text-gray-300" />
+                              </div>
+                            )}
+                          </Link>
+
                           {/* Badges */}
                           <div className="absolute top-4 left-4 flex flex-col gap-2">
                             {product.featured && (
@@ -397,9 +403,11 @@ const Products = () => {
                         <div className="p-4">
 
                           {/* Product Name */}
-                          <h3 className="text-sm font-bold text-gray-900 mb-2 line-clamp-2 leading-tight min-h-[2.5rem]">
-                            {product.name}
-                          </h3>
+                          <Link to={`/products/${product.id}`}>
+                            <h3 className="text-sm font-bold text-gray-900 mb-2 line-clamp-2 leading-tight min-h-[2.5rem] hover:text-emerald-600 transition-colors">
+                              {product.name}
+                            </h3>
+                          </Link>
                           
                           {/* Price */}
                           <div className="mb-3">
@@ -482,9 +490,10 @@ const Products = () => {
                         {/* List View */}
                         <div className="w-40 h-32 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl flex-shrink-0 relative overflow-hidden">
                           {product.images && product.images.length > 0 ? (
-                            <img 
-                              src={product.images[0].imageUrl} 
+                            <img
+                              src={product.images[0].imageUrl}
                               alt={product.name}
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).src = PRODUCT_FALLBACK_IMG }}
                               className="w-full h-full object-cover"
                             />
                           ) : (
