@@ -211,18 +211,18 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
     }
 
     // Check if user is active
     if (user.status !== UserStatus.ACTIVE) {
-      throw new UnauthorizedException('Account is not active');
+      throw new UnauthorizedException('Tài khoản đã bị khóa hoặc chưa được kích hoạt');
     }
 
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
     }
 
     // Chặn đăng nhập khi email chưa được xác minh
@@ -331,7 +331,7 @@ export class AuthService {
 
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException('Không tìm thấy người dùng');
     }
 
     // Verify current password

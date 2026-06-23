@@ -38,7 +38,7 @@ export class ProfileService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('Không tìm thấy người dùng');
     }
 
     return {
@@ -55,7 +55,7 @@ export class ProfileService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('Không tìm thấy người dùng');
     }
 
     // Update user basic info if provided
@@ -141,7 +141,7 @@ export class ProfileService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('Không tìm thấy người dùng');
     }
 
     // Verify current password

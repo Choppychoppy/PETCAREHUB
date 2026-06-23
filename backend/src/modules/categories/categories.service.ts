@@ -167,7 +167,7 @@ export class CategoriesService {
     });
 
     if (!category) {
-      throw new NotFoundException('Category not found');
+      throw new NotFoundException('Không tìm thấy danh mục');
     }
 
     return category;

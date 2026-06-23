@@ -495,9 +495,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             <div className="flex items-center gap-4">
               <span className="px-2 py-1 bg-slate-100 rounded-md font-semibold text-slate-600">Version 1.0.0</span>
               <span className="text-slate-300">•</span>
-              <Link to="/admin/help" className="hover:text-blue-600 transition-colors font-medium">
+              <a
+                href="mailto:support@petcarehub.com?subject=Y%C3%AAu%20c%E1%BA%A7u%20tr%E1%BB%A3%20gi%C3%BAp%20PetCareHub"
+                className="hover:text-blue-600 transition-colors font-medium"
+              >
                 Trợ giúp
-              </Link>
+              </a>
             </div>
           </div>
         </footer>

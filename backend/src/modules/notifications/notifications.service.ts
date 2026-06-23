@@ -92,7 +92,7 @@ export class NotificationsService {
     const notification = await queryBuilder.getOne();
 
     if (!notification) {
-      throw new NotFoundException('Notification not found');
+      throw new NotFoundException('Không tìm thấy thông báo');
     }
 
     return notification;

@@ -139,7 +139,7 @@ export class CommunityService {
     });
 
     if (!post) {
-      throw new NotFoundException('Post not found');
+      throw new NotFoundException('Không tìm thấy bài viết');
     }
 
     // Increment views
@@ -156,7 +156,7 @@ export class CommunityService {
     });
 
     if (!post) {
-      throw new NotFoundException('Post not found');
+      throw new NotFoundException('Không tìm thấy bài viết');
     }
 
     // Increment views
@@ -173,7 +173,7 @@ export class CommunityService {
     });
 
     if (!post) {
-      throw new NotFoundException('Post not found');
+      throw new NotFoundException('Không tìm thấy bài viết');
     }
 
     if (post.author.id !== userId) {
@@ -195,7 +195,7 @@ export class CommunityService {
     });
 
     if (!post) {
-      throw new NotFoundException('Post not found');
+      throw new NotFoundException('Không tìm thấy bài viết');
     }
 
     if (post.author.id !== userId) {
@@ -210,7 +210,7 @@ export class CommunityService {
   async addComment(postId: string, userId: string, createCommentDto: CreateCommentDto): Promise<Comment> {
     const post = await this.postRepository.findOne({ where: { id: postId } });
     if (!post) {
-      throw new NotFoundException('Post not found');
+      throw new NotFoundException('Không tìm thấy bài viết');
     }
 
     const comment = this.commentRepository.create({

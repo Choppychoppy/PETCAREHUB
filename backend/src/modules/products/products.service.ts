@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
@@ -184,7 +184,7 @@ export class ProductsService {
     });
 
     if (!product) {
-      throw new NotFoundException('Product not found');
+      throw new NotFoundException('Không tìm thấy sản phẩm');
     }
 
     return product;
@@ -197,7 +197,7 @@ export class ProductsService {
     });
 
     if (!product) {
-      throw new NotFoundException('Product not found');
+      throw new NotFoundException('Không tìm thấy sản phẩm');
     }
 
     return product;
@@ -277,8 +277,34 @@ export class ProductsService {
 
   async remove(id: string): Promise<void> {
     const product = await this.findOne(id);
-    product.isActive = false;
-    await this.productRepository.save(product);
+
+    // Kiểm tra sản phẩm có đang được tham chiếu ở nơi khác không
+    // (đơn hàng, đánh giá, danh sách yêu thích) để tránh xoá mất lịch sử.
+    const [ref] = await this.productRepository.manager.query(
+      `SELECT
+         (SELECT COUNT(*) FROM order_items WHERE productId = ?) AS orders,
+         (SELECT COUNT(*) FROM reviews WHERE productId = ?) AS reviews,
+         (SELECT COUNT(*) FROM wishlists WHERE productId = ?) AS wishlists`,
+      [id, id, id],
+    );
+    const referenced =
+      Number(ref?.orders || 0) +
+      Number(ref?.reviews || 0) +
+      Number(ref?.wishlists || 0) > 0;
+
+    if (referenced) {
+      // Đã được dùng -> chỉ ẩn (ngừng bán) để giữ lịch sử đơn hàng/đánh giá
+      product.isActive = false;
+      await this.productRepository.save(product);
+      throw new BadRequestException(
+        'Sản phẩm đang được sử dụng trong đơn hàng/đánh giá nên đã chuyển sang trạng thái ngừng bán, không thể xoá vĩnh viễn',
+      );
+    }
+
+    // Chưa được tham chiếu -> xoá vĩnh viễn kèm ảnh và biến thể
+    await this.productImageRepository.delete({ productId: id });
+    await this.productVariantRepository.delete({ product: { id } });
+    await this.productRepository.delete(id);
   }
 
   async updateStock(id: string, quantity: number): Promise<Product> {

@@ -31,7 +31,7 @@ export class UsersService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException('Không tìm thấy người dùng');
     }
 
     return user;
@@ -149,7 +149,7 @@ export class UsersService {
     const user = await this.findById(userId);
 
     if (user.role === UserRole.ADMIN) {
-      throw new BadRequestException('Cannot ban an admin user');
+      throw new BadRequestException('Không thể cấm tài khoản quản trị viên');
     }
 
     user.status = UserStatus.BANNED;
@@ -162,7 +162,7 @@ export class UsersService {
     const user = await this.findById(userId);
 
     if (user.status !== UserStatus.BANNED) {
-      throw new BadRequestException('User is not banned');
+      throw new BadRequestException('Tài khoản này hiện không bị cấm');
     }
 
     user.status = UserStatus.ACTIVE;

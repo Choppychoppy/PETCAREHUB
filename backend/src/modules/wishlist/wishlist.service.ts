@@ -22,7 +22,7 @@ export class WishlistService {
     });
 
     if (!product) {
-      throw new NotFoundException('Product not found');
+      throw new NotFoundException('Không tìm thấy sản phẩm');
     }
 
     const existingWishlistItem = await this.wishlistRepository.findOne({
@@ -30,7 +30,7 @@ export class WishlistService {
     });
 
     if (existingWishlistItem) {
-      throw new ConflictException('Product already in wishlist');
+      throw new ConflictException('Sản phẩm đã có trong danh sách yêu thích');
     }
 
     const wishlistItem = this.wishlistRepository.create({
@@ -52,7 +52,7 @@ export class WishlistService {
     });
 
     if (!wishlistItem) {
-      throw new NotFoundException('Product not found in wishlist');
+      throw new NotFoundException('Không tìm thấy sản phẩm trong danh sách yêu thích');
     }
 
     await this.wishlistRepository.remove(wishlistItem);
@@ -125,7 +125,7 @@ export class WishlistService {
     });
 
     if (!wishlistItem) {
-      throw new NotFoundException('Product not found in wishlist');
+      throw new NotFoundException('Không tìm thấy sản phẩm trong danh sách yêu thích');
     }
 
     await this.wishlistRepository.remove(wishlistItem);

@@ -405,6 +405,9 @@ const Users = () => {
                 variant="warning"
                 size="sm"
                 onClick={() => handleBan(user)}
+                disabled={user.role === 'admin'}
+                title={user.role === 'admin' ? 'Không thể cấm tài khoản quản trị viên' : 'Cấm người dùng'}
+                className={user.role === 'admin' ? 'opacity-50 cursor-not-allowed' : ''}
               >
                 <Ban className="w-4 h-4" />
                 Cấm

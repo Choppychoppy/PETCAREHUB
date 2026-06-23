@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   OneToMany,
+  JoinColumn,
 } from 'typeorm';
 import { Service } from '../../services/entities/service.entity';
 import { Product } from '../../products/entities/product.entity';
@@ -57,7 +58,12 @@ export class Category {
   updatedAt: Date;
 
   // Self-referencing for hierarchical categories
+  // Map tường minh cột parentId để có thể tạo/cập nhật danh mục con bằng parentId
+  @Column({ type: 'varchar', length: 36, nullable: true })
+  parentId: string | null;
+
   @ManyToOne(() => Category, (category) => category.children, { nullable: true })
+  @JoinColumn({ name: 'parentId' })
   parent: Category;
 
   @OneToMany(() => Category, (category) => category.parent)

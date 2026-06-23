@@ -281,7 +281,7 @@ export class AppointmentsService {
     });
 
     if (!appointment) {
-      throw new NotFoundException('Appointment not found');
+      throw new NotFoundException('Không tìm thấy lịch hẹn');
     }
 
     // Nguoi dung thuong chi duoc xem lich hen cua minh.

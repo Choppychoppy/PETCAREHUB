@@ -52,6 +52,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0)
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
+  // Lưu ý: KHÔNG gọi toast bên trong hàm updater của setItems.
+  // React StrictMode gọi updater 2 lần -> toast sẽ bị nhân đôi (x2).
+  // Vì vậy mọi toast đều được gọi ngoài updater, dựa trên state hiện tại (items).
   const addToCart = useCallback((product: {
     id: string
     name: string
@@ -59,48 +62,45 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     imageUrl?: string
     stockQuantity: number
   }, quantity = 1) => {
-    setItems(prev => {
-      const existingItem = prev.find(item => item.productId === product.id)
+    const existingItem = items.find(item => item.productId === product.id)
 
-      if (existingItem) {
-        // Check stock limit
-        const newQuantity = existingItem.quantity + quantity
-        if (newQuantity > product.stockQuantity) {
-          toast.error(`Chỉ còn ${product.stockQuantity} sản phẩm trong kho`)
-          return prev
-        }
-
-        toast.success(`Đã cập nhật số lượng trong giỏ hàng`)
-        return prev.map(item =>
-          item.productId === product.id
-            ? { ...item, quantity: newQuantity }
-            : item
-        )
+    if (existingItem) {
+      // Check stock limit
+      const newQuantity = existingItem.quantity + quantity
+      if (newQuantity > product.stockQuantity) {
+        toast.error(`Chỉ còn ${product.stockQuantity} sản phẩm trong kho`)
+        return
       }
 
-      // Add new item
-      toast.success(`Đã thêm "${product.name}" vào giỏ hàng`)
-      return [...prev, {
-        id: `cart-${product.id}-${Date.now()}`,
-        productId: product.id,
-        name: product.name,
-        price: product.price,
-        quantity,
-        imageUrl: product.imageUrl,
-        maxStock: product.stockQuantity
-      }]
-    })
-  }, [])
+      toast.success(`Đã cập nhật số lượng trong giỏ hàng`)
+      setItems(prev => prev.map(item =>
+        item.productId === product.id
+          ? { ...item, quantity: newQuantity }
+          : item
+      ))
+      return
+    }
+
+    // Add new item
+    toast.success(`Đã thêm "${product.name}" vào giỏ hàng`)
+    setItems(prev => [...prev, {
+      id: `cart-${product.id}-${Date.now()}`,
+      productId: product.id,
+      name: product.name,
+      price: product.price,
+      quantity,
+      imageUrl: product.imageUrl,
+      maxStock: product.stockQuantity
+    }])
+  }, [items])
 
   const removeFromCart = useCallback((productId: string) => {
-    setItems(prev => {
-      const item = prev.find(i => i.productId === productId)
-      if (item) {
-        toast.success(`Đã xóa "${item.name}" khỏi giỏ hàng`)
-      }
-      return prev.filter(item => item.productId !== productId)
-    })
-  }, [])
+    const item = items.find(i => i.productId === productId)
+    if (item) {
+      toast.success(`Đã xóa "${item.name}" khỏi giỏ hàng`)
+    }
+    setItems(prev => prev.filter(i => i.productId !== productId))
+  }, [items])
 
   const updateQuantity = useCallback((productId: string, quantity: number) => {
     if (quantity < 1) {
@@ -108,17 +108,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return
     }
 
-    setItems(prev => prev.map(item => {
-      if (item.productId === productId) {
-        if (quantity > item.maxStock) {
-          toast.error(`Chỉ còn ${item.maxStock} sản phẩm trong kho`)
-          return item
-        }
-        return { ...item, quantity }
-      }
-      return item
-    }))
-  }, [removeFromCart])
+    const item = items.find(i => i.productId === productId)
+    if (item && quantity > item.maxStock) {
+      toast.error(`Chỉ còn ${item.maxStock} sản phẩm trong kho`)
+      return
+    }
+
+    setItems(prev => prev.map(i =>
+      i.productId === productId ? { ...i, quantity } : i
+    ))
+  }, [items, removeFromCart])
 
   const clearCart = useCallback(() => {
     setItems([])
