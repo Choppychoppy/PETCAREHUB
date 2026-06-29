@@ -6,7 +6,7 @@ Full Stack, Machine Learning
 
 ## Giới Thiệu
 
-PetCareHub là nền tảng chăm sóc thú cưng tích hợp AI. Hệ thống bao gồm backend NestJS, frontend React và module AI sử dụng PyTorch để hỗ trợ chẩn đoán bệnh thú cưng.
+PetCareHub là nền tảng chăm sóc thú cưng tích hợp AI. Hệ thống bao gồm backend NestJS, frontend React và module AI sử dụng PyTorch để hỗ trợ chẩn đoán thú cưng và bệnh thú cưng.
 
 ## Chức Năng
 
