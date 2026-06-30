@@ -12,7 +12,7 @@ PetCareHub là nền tảng chăm sóc thú cưng tích hợp AI. Hệ thống b
 
 - Quản lý thông tin thú cưng
 - Đặt lịch khám và chăm sóc
-- Chẩn đoán bệnh thú cưng bằng AI (PyTorch)
+- Chẩn đoán giống và bệnh thú cưng bằng AI (PyTorch)
 - Quản lý dịch vụ chăm sóc
 - Bài viết và cộng đồng thú cưng
 
