@@ -1,5 +1,0 @@
-export { PostCard } from './PostCard'
-export { PostCardWithComments } from './PostCardWithComments'
-export { CreatePostModal } from './CreatePostModal'
-export { CommentSection } from './CommentSection'
-export { ContestCard } from './ContestCard'
